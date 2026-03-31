@@ -8,9 +8,9 @@ Field tool for scouting valuable tree genetics and public harvestable trees. The
 # Install
 npm install
 
-# Set up DB (requires PostgreSQL + PostGIS)
-cp .env.example .env  # edit DATABASE_URL
-psql $DATABASE_URL -f scripts/001-schema.sql
+# DB lives on buberry-db LXC (192.168.1.251), shared buberry database
+# Schema was created via: psql -d buberry -f scripts/002-schema-migration.sql
+cp .env.example .env  # DATABASE_URL=postgresql://buberry_app:...@192.168.1.251/buberry
 
 # Dev
 npm run dev
@@ -18,12 +18,22 @@ npm run dev
 
 ## Stack
 - Next.js 15 + TypeScript
-- PostgreSQL + PostGIS (raw `pg` driver, no ORM)
+- PostgreSQL 15 + PostGIS 3 on Proxmox LXC 110 (buberry-db)
+- Shared `buberry` DB with schema separation (citizen.*, lms.*, public.*)
 - Leaflet + OpenStreetMap (no API keys)
 - IndexedDB (`idb`) for offline storage
 - PWA (manifest + service worker)
 
-## Architecture
+## Database Architecture
+Single `buberry` database, schema-separated:
+- `public` — shared auth tables (`user`, `account`, `session`, `roles`)
+- `lms` — courses, lessons, enrollments
+- `citizen` — trees, observations, photos, projects
+
+Connection sets `search_path = citizen, public` so queries resolve without prefixes.
+User references point to `public."user"`.
+
+## App Architecture
 - Trees are persistent entities with observation timelines
 - API returns `{ success, data?, error? }` consistently
 - Offline-first: IndexedDB queue → background sync → `/api/sync` (idempotent via `local_id`)

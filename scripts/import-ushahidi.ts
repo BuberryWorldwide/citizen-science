@@ -183,6 +183,9 @@ async function main() {
     connectionString: process.env.DATABASE_URL,
   });
 
+  // Use citizen schema for tree tables
+  await pool.query('SET search_path TO citizen, public');
+
   let treesCreated = 0;
   let obsCreated = 0;
   let photosCreated = 0;

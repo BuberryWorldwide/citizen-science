@@ -1,15 +1,43 @@
--- Citizen Science Schema (citizen.*)
--- Lives in the shared buberry DB alongside public (auth) and lms schemas.
--- Users are in public."user" (shared across all apps).
+-- Migration: Reorganize buberry DB into schemas
+-- Run: psql -d buberry -f scripts/002-schema-migration.sql
 --
--- Fresh setup: run 002-schema-migration.sql instead (creates schemas + moves LMS tables)
--- This file documents what the citizen schema contains.
+-- Before: everything in public schema
+-- After:
+--   public  → shared auth tables (user, account, session, roles, etc.)
+--   lms     → courses, lessons, enrollments, lesson_progress
+--   citizen → trees, observations, photos, projects (new)
 
+BEGIN;
+
+-- ============================================
+-- 1. Create schemas
+-- ============================================
+CREATE SCHEMA IF NOT EXISTS lms;
+CREATE SCHEMA IF NOT EXISTS citizen;
+
+-- ============================================
+-- 2. Move LMS tables to lms schema
+-- ============================================
+
+-- Move courses first (referenced by lessons and enrollments)
+ALTER TABLE public.courses SET SCHEMA lms;
+ALTER TABLE public.lessons SET SCHEMA lms;
+ALTER TABLE public.enrollments SET SCHEMA lms;
+ALTER TABLE public.lesson_progress SET SCHEMA lms;
+
+-- Move sequences too
+ALTER SEQUENCE IF EXISTS public.courses_id_seq SET SCHEMA lms;
+ALTER SEQUENCE IF EXISTS public.lessons_id_seq SET SCHEMA lms;
+
+-- ============================================
+-- 3. Enable extensions for citizen schema
+-- ============================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgis";
 
-CREATE SCHEMA IF NOT EXISTS citizen;
-SET search_path TO citizen, public;
+-- ============================================
+-- 4. Create citizen science tables
+-- ============================================
 
 CREATE TABLE IF NOT EXISTS citizen.trees (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -76,3 +104,21 @@ CREATE TABLE IF NOT EXISTS citizen.project_trees (
   tree_id UUID REFERENCES citizen.trees(id) ON DELETE CASCADE,
   PRIMARY KEY (project_id, tree_id)
 );
+
+-- ============================================
+-- 5. Grant buberry_app access to new schemas
+-- ============================================
+GRANT USAGE ON SCHEMA lms TO buberry_app;
+GRANT USAGE ON SCHEMA citizen TO buberry_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA lms TO buberry_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA citizen TO buberry_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA lms TO buberry_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA citizen TO buberry_app;
+
+-- Future tables in these schemas also get permissions
+ALTER DEFAULT PRIVILEGES IN SCHEMA lms GRANT ALL ON TABLES TO buberry_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA citizen GRANT ALL ON TABLES TO buberry_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA lms GRANT ALL ON SEQUENCES TO buberry_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA citizen GRANT ALL ON SEQUENCES TO buberry_app;
+
+COMMIT;
