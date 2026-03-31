@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { TagTreeForm } from '@/components/TagTreeForm';
 import { TreeDetail } from '@/components/TreeDetail';
 import { ObservationForm } from '@/components/ObservationForm';
@@ -124,6 +125,12 @@ export default function Home() {
           )}
         </div>
         <div className="flex gap-2">
+          <Link
+            href="/projects"
+            className="px-2 py-1.5 border border-[var(--border)] text-[var(--muted)] rounded-lg text-xs active:bg-[var(--border)]"
+          >
+            Projects
+          </Link>
           <a
             href={`/api/export?format=csv${activeFilters.species ? `&species=${activeFilters.species}` : ''}`}
             className="px-2 py-1.5 border border-[var(--border)] text-[var(--muted)] rounded-lg text-xs active:bg-[var(--border)]"

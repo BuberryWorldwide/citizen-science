@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TreeWithObservations } from '@/types/tree';
+import { Project } from '@/lib/db/projects';
 
 interface TreeDetailProps {
   treeId: string;
@@ -12,16 +13,39 @@ interface TreeDetailProps {
 export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProps) {
   const [tree, setTree] = useState<TreeWithObservations | null>(null);
   const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     fetch(`/api/trees/${treeId}`)
       .then(r => r.json())
-      .then(json => {
-        if (json.success) setTree(json.data);
-      })
+      .then(json => { if (json.success) setTree(json.data); })
       .catch(err => console.error('Failed to load tree:', err))
       .finally(() => setLoading(false));
   }, [treeId]);
+
+  const openProjectPicker = async () => {
+    try {
+      const res = await fetch('/api/projects');
+      const json = await res.json();
+      if (json.success) setAllProjects(json.data);
+    } catch { /* ignore */ }
+    setShowProjectPicker(true);
+  };
+
+  const addToProject = async (projectId: string) => {
+    try {
+      await fetch(`/api/projects/${projectId}/trees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tree_id: treeId }),
+      });
+      const proj = allProjects.find(p => p.id === projectId);
+      if (proj) setProjects(prev => [...prev, proj]);
+    } catch { /* ignore */ }
+    setShowProjectPicker(false);
+  };
 
   if (loading) {
     return <div className="p-6 text-center text-[var(--muted)]">Loading...</div>;
@@ -69,14 +93,59 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
         <p className="text-sm text-[var(--muted)] mb-4 italic">{tree.notes}</p>
       )}
 
-      {/* Add observation button */}
-      {onAddObservation && (
+      {/* Projects this tree belongs to */}
+      {projects.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {projects.map(p => (
+            <span key={p.id} className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded text-xs">
+              {p.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-2 mb-4">
+        {onAddObservation && (
+          <button
+            onClick={() => onAddObservation(treeId)}
+            className="flex-1 py-2 border border-[var(--accent)] text-[var(--accent)] rounded-lg text-sm font-medium active:bg-[var(--accent)]/10"
+          >
+            + Observation
+          </button>
+        )}
         <button
-          onClick={() => onAddObservation(treeId)}
-          className="w-full py-2 border border-[var(--accent)] text-[var(--accent)] rounded-lg text-sm font-medium active:bg-[var(--accent)]/10 mb-4"
+          onClick={openProjectPicker}
+          className="flex-1 py-2 border border-[var(--border)] text-[var(--muted)] rounded-lg text-sm active:bg-[var(--border)]"
         >
-          + Add Observation
+          + Project
         </button>
+      </div>
+
+      {/* Project picker */}
+      {showProjectPicker && (
+        <div className="mb-4 border border-[var(--border)] rounded-lg overflow-hidden">
+          <div className="px-3 py-2 bg-[var(--bg)] text-xs text-[var(--muted)]">Add to project:</div>
+          {allProjects.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-[var(--muted)]">No projects yet.</p>
+          ) : (
+            allProjects.map(p => (
+              <button
+                key={p.id}
+                onClick={() => addToProject(p.id)}
+                className="w-full text-left px-3 py-2 text-sm border-t border-[var(--border)] active:bg-[var(--border)]"
+              >
+                {p.name}
+              </button>
+            ))
+          )}
+          <button
+            onClick={() => setShowProjectPicker(false)}
+            className="w-full px-3 py-2 text-xs text-[var(--muted)] border-t border-[var(--border)]"
+          >
+            Cancel
+          </button>
+        </div>
       )}
 
       {/* Observation timeline */}

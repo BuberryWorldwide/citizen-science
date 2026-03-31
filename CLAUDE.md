@@ -49,6 +49,6 @@ User references point to `public."user"`.
 
 ## Phases
 - [x] Phase 1: Walking skeleton (tag tree, see on map)
-- [ ] Phase 2: Offline sync + return visits
-- [ ] Phase 3: Ushahidi import, search, export, auth
-- [ ] Phase 4: Projects + polish
+- [x] Phase 2: Offline sync + return visits
+- [x] Phase 3: Search, filters, export (auth deferred — uses existing NextAuth in public.user)
+- [x] Phase 4: Projects CRUD + add trees to projects
