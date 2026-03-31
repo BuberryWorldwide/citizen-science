@@ -1,0 +1,34 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { ObservationManager } from '@/lib/db/trees';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    if (!body.tree_id) {
+      return NextResponse.json({ success: false, error: 'tree_id is required' }, { status: 400 });
+    }
+
+    const observation = await ObservationManager.create({
+      tree_id: body.tree_id,
+      health: body.health,
+      trunk_width: body.trunk_width,
+      phenology: body.phenology,
+      fruit_size: body.fruit_size,
+      fruit_sweetness: body.fruit_sweetness,
+      fruit_color: body.fruit_color,
+      yield: body.yield,
+      fruit_quality: body.fruit_quality,
+      fruiting_month_start: body.fruiting_month_start,
+      fruiting_month_end: body.fruiting_month_end,
+      reliability: body.reliability,
+      notes: body.notes,
+      local_id: body.local_id,
+    });
+
+    return NextResponse.json({ success: true, data: observation }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating observation:', error);
+    return NextResponse.json({ success: false, error: 'Failed to create observation' }, { status: 500 });
+  }
+}
