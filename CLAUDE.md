@@ -5,15 +5,12 @@ Field tool for scouting valuable tree genetics and public harvestable trees. The
 ## Quick Start
 
 ```bash
-# Install
 npm install
 
-# DB lives on buberry-db LXC (192.168.1.251), shared buberry database
-# Schema was created via: psql -d buberry -f scripts/002-schema-migration.sql
-cp .env.example .env  # DATABASE_URL=postgresql://buberry_app:...@192.168.1.251/buberry
-
-# Dev
-npm run dev
+# .env.local already configured with buberry-db connection
+# DB: buberry-db LXC 110 (192.168.1.251), user buberry_app, database buberry
+# Schema created via: psql -d buberry -f scripts/002-schema-migration.sql
+npm run dev  # http://localhost:3000
 ```
 
 ## Stack
