@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TreeManager, ObservationManager } from '@/lib/db/trees';
+import { PointsManager } from '@/lib/db/points';
+import { getCurrentUserId } from '@/lib/auth/session';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,6 +42,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const userId = await getCurrentUserId();
 
     if (!body.lat || !body.lon) {
       return NextResponse.json({ success: false, error: 'lat and lon are required' }, { status: 400 });
@@ -53,6 +56,7 @@ export async function POST(request: NextRequest) {
       accessibility: body.accessibility,
       status: body.status,
       use_potential: body.use_potential,
+      created_by: userId || undefined,
       notes: body.notes,
     });
 
@@ -60,11 +64,17 @@ export async function POST(request: NextRequest) {
     if (body.health || body.trunk_width || body.phenology || body.observation_notes) {
       await ObservationManager.create({
         tree_id: tree.id,
+        observer_id: userId || undefined,
         health: body.health,
         trunk_width: body.trunk_width,
         phenology: body.phenology,
         notes: body.observation_notes,
       });
+    }
+
+    // Award points
+    if (userId) {
+      await PointsManager.award(userId, 'tree_tagged', tree.id);
     }
 
     return NextResponse.json({ success: true, data: tree }, { status: 201 });

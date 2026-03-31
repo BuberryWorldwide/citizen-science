@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ObservationManager } from '@/lib/db/trees';
+import { PointsManager } from '@/lib/db/points';
+import { getCurrentUserId } from '@/lib/auth/session';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const userId = await getCurrentUserId();
 
     if (!body.tree_id) {
       return NextResponse.json({ success: false, error: 'tree_id is required' }, { status: 400 });
@@ -11,6 +14,7 @@ export async function POST(request: NextRequest) {
 
     const observation = await ObservationManager.create({
       tree_id: body.tree_id,
+      observer_id: userId || body.observer_id || undefined,
       health: body.health,
       trunk_width: body.trunk_width,
       phenology: body.phenology,
@@ -25,6 +29,10 @@ export async function POST(request: NextRequest) {
       notes: body.notes,
       local_id: body.local_id,
     });
+
+    if (userId) {
+      await PointsManager.award(userId, 'observation', observation.id);
+    }
 
     return NextResponse.json({ success: true, data: observation }, { status: 201 });
   } catch (error) {

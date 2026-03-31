@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TreeManager, ObservationManager } from '@/lib/db/trees';
+import { PointsManager } from '@/lib/db/points';
+import { getCurrentUserId } from '@/lib/auth/session';
 import { query } from '@/lib/db/connection';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const userId = await getCurrentUserId();
     const results = { trees: [] as string[], observations: [] as string[], errors: [] as string[] };
 
     // Sync pending trees
@@ -30,6 +33,7 @@ export async function POST(request: NextRequest) {
             lon: treeData.lon,
             accessibility: treeData.accessibility,
             use_potential: treeData.use_potential,
+            created_by: userId || undefined,
             notes: treeData.notes,
           });
 
@@ -45,6 +49,7 @@ export async function POST(request: NextRequest) {
             });
           }
 
+          if (userId) await PointsManager.award(userId, 'tree_tagged', tree.id);
           results.trees.push(tree.id);
         } catch (err) {
           results.errors.push(`Tree sync failed: ${(err as Error).message}`);
@@ -67,7 +72,8 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const obs = await ObservationManager.create(obsData);
+          const obs = await ObservationManager.create({ ...obsData, observer_id: userId || obsData.observer_id });
+          if (userId) await PointsManager.award(userId, 'observation', obs.id);
           results.observations.push(obs.id);
         } catch (err) {
           results.errors.push(`Observation sync failed: ${(err as Error).message}`);

@@ -87,17 +87,22 @@ function parseRows(csv: string): ParsedRow[] {
       continue;
     }
 
-    // Try multiple lat/lon column positions (different survey types use different columns)
+    // Lat/lon columns differ per survey type
     let lat = 0, lon = 0;
-    // Mulberry: cols 17,18; Bradford/others may use cols 28,29 (Tree Location) or 34,35
-    const latLonPairs = [
-      [parseFloat(cols[17]), parseFloat(cols[18])],
-      [parseFloat(cols[28]), parseFloat(cols[29])],
-      [parseFloat(cols[34]), parseFloat(cols[35])],
-      [parseFloat(cols[47]), parseFloat(cols[48])],
+    const latLonCols: [number, number][] = [
+      [17, 18],   // Mulberry
+      [28, 29],   // Service Request (Tree Location)
+      [34, 35],   // fallback
+      [47, 48],   // Community Spaces
+      [55, 56],   // Pawpaw Patch
+      [66, 67],   // Bradford Pear
+      [87, 88],   // Chestnut
+      [97, 98],   // Plum
     ];
 
-    for (const [tryLat, tryLon] of latLonPairs) {
+    for (const [latCol, lonCol] of latLonCols) {
+      const tryLat = parseFloat(cols[latCol]);
+      const tryLon = parseFloat(cols[lonCol]);
       if (!isNaN(tryLat) && !isNaN(tryLon) && tryLat !== 0 && tryLon !== 0) {
         lat = tryLat;
         lon = tryLon;
@@ -110,9 +115,9 @@ function parseRows(csv: string): ParsedRow[] {
       continue;
     }
 
-    // Photo URL: check multiple image columns
+    // Photo URL: check all known image columns
     let photoUrl: string | null = null;
-    for (const idx of [21, 31, 42, 49]) {
+    for (const idx of [21, 31, 41, 42, 49, 58, 59, 60, 61, 70, 114, 116]) {
       if (cols[idx] && cols[idx].startsWith('http')) {
         photoUrl = cols[idx];
         break;
@@ -269,12 +274,14 @@ async function main() {
         );
         obsCreated++;
 
-        // Create photo reference
+        // Create photo reference — storage_key is local path, url is CDN fallback
         if (obs.photo_url) {
+          const filename = obs.photo_url.split('/').pop();
+          const localPath = `/photos/${filename}`;
           await pool.query(
             `INSERT INTO observation_photos (observation_id, storage_key, url, synced, local_id)
              VALUES ($1, $2, $3, true, $4)`,
-            [obsResult.rows[0].id, obs.photo_url, obs.photo_url, `ushahidi-photo-${obs.post_id}`]
+            [obsResult.rows[0].id, localPath, obs.photo_url, `ushahidi-photo-${obs.post_id}`]
           );
           photosCreated++;
         }

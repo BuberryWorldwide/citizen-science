@@ -10,9 +10,13 @@
     "db:migrate": "psql $DATABASE_URL -f scripts/001-schema.sql"
   },
   "dependencies": {
+    "@auth/pg-adapter": "^1.11.1",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
     "idb": "^8.0.2",
     "leaflet": "^1.9.4",
     "next": "^15.5.7",
+    "next-auth": "^4.24.13",
     "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
