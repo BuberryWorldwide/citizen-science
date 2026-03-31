@@ -115,10 +115,10 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 pb-8 space-y-4">
+    <form onSubmit={handleSubmit} className="p-4 pb-8 space-y-4 safe-area-bottom">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-bold">Tag a Tree</h2>
-        <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm">Cancel</button>
+        <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm min-h-[44px] px-3">Cancel</button>
       </div>
 
       {lat && lon && (
@@ -163,7 +163,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
               key={opt.value}
               type="button"
               onClick={() => setAccessibility(opt.value)}
-              className={`px-3 py-1 rounded-full text-xs border ${
+              className={`px-3.5 py-2 rounded-full text-sm border ${
                 accessibility === opt.value
                   ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--muted)]'
@@ -184,7 +184,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
               key={h}
               type="button"
               onClick={() => setHealth(h)}
-              className={`px-3 py-1 rounded-full text-xs border capitalize ${
+              className={`px-3.5 py-2 rounded-full text-sm border capitalize ${
                 health === h
                   ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--muted)]'
@@ -205,7 +205,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
               key={t.value}
               type="button"
               onClick={() => setTrunkWidth(t.value)}
-              className={`px-3 py-1 rounded-full text-xs border ${
+              className={`px-3.5 py-2 rounded-full text-sm border ${
                 trunkWidth === t.value
                   ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--muted)]'
@@ -226,7 +226,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
               key={p}
               type="button"
               onClick={() => setPhenology(p)}
-              className={`px-3 py-1 rounded-full text-xs border capitalize ${
+              className={`px-3.5 py-2 rounded-full text-sm border capitalize ${
                 phenology === p
                   ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--muted)]'
@@ -247,7 +247,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
               key={u.value}
               type="button"
               onClick={() => toggleUsePotential(u.value)}
-              className={`px-3 py-1 rounded-full text-xs border ${
+              className={`px-3.5 py-2 rounded-full text-sm border ${
                 usePotential.includes(u.value)
                   ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--muted)]'

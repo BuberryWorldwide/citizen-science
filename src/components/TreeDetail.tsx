@@ -56,7 +56,7 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
   }
 
   return (
-    <div className="p-4 pb-8">
+    <div className="p-4 pb-8 safe-area-bottom">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h2 className="text-xl font-bold">{tree.species || 'Unknown Species'}</h2>
@@ -64,7 +64,7 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
             <p className="text-sm text-[var(--muted)]">{tree.species_variety}</p>
           )}
         </div>
-        <button onClick={onClose} className="text-[var(--muted)] text-sm">Close</button>
+        <button onClick={onClose} className="text-[var(--muted)] text-sm min-h-[44px] px-3">Close</button>
       </div>
 
       {/* Tree info */}
@@ -109,14 +109,14 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
         {onAddObservation && (
           <button
             onClick={() => onAddObservation(treeId)}
-            className="flex-1 py-2 border border-[var(--accent)] text-[var(--accent)] rounded-lg text-sm font-medium active:bg-[var(--accent)]/10"
+            className="flex-1 py-2 border border-[var(--accent)] text-[var(--accent)] rounded-lg text-sm font-medium min-h-[44px] active:bg-[var(--accent)]/10"
           >
             + Observation
           </button>
         )}
         <button
           onClick={openProjectPicker}
-          className="flex-1 py-2 border border-[var(--border)] text-[var(--muted)] rounded-lg text-sm active:bg-[var(--border)]"
+          className="flex-1 py-2 border border-[var(--border)] text-[var(--muted)] rounded-lg text-sm min-h-[44px] active:bg-[var(--border)]"
         >
           + Project
         </button>
@@ -133,7 +133,7 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
               <button
                 key={p.id}
                 onClick={() => addToProject(p.id)}
-                className="w-full text-left px-3 py-2 text-sm border-t border-[var(--border)] active:bg-[var(--border)]"
+                className="w-full text-left px-3 py-3 text-sm border-t border-[var(--border)] min-h-[44px] active:bg-[var(--border)]"
               >
                 {p.name}
               </button>
@@ -181,6 +181,24 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
                 )}
               </div>
               {obs.notes && <p className="text-[var(--muted)] mt-1">{obs.notes}</p>}
+              {obs.photos && obs.photos.length > 0 && (
+                <div className="flex gap-2 mt-2 overflow-x-auto">
+                  {obs.photos.map(photo => (
+                    <a
+                      key={photo.id}
+                      href={photo.url || ''}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={photo.url || ''}
+                        alt={photo.caption || 'Observation photo'}
+                        className="w-48 h-48 object-cover rounded-lg flex-shrink-0"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

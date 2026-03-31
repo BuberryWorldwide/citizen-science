@@ -5,6 +5,7 @@ import { useState } from 'react';
 interface SearchFiltersProps {
   onSearch: (filters: SearchParams) => void;
   userLocation: [number, number] | null;
+  overlay?: boolean;
 }
 
 export interface SearchParams {
@@ -27,8 +28,8 @@ const RADIUS_OPTIONS = [
   { value: 16000, label: '10 mi' },
 ];
 
-export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
-  const [expanded, setExpanded] = useState(false);
+export function SearchFilters({ onSearch, userLocation, overlay }: SearchFiltersProps) {
+  const [expanded, setExpanded] = useState(!!overlay);
   const [species, setSpecies] = useState('');
   const [accessibility, setAccessibility] = useState('');
   const [phenology, setPhenology] = useState('');
@@ -67,7 +68,7 @@ export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
   };
 
   return (
-    <div className="bg-[var(--surface)] border-b border-[var(--border)]">
+    <div className={overlay ? '' : 'bg-[var(--surface)] border-b border-[var(--border)]'}>
       {/* Search bar */}
       <div className="flex items-center gap-2 px-3 py-2">
         <input
@@ -76,17 +77,17 @@ export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
           onChange={(e) => setSpecies(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
           placeholder="Search species..."
-          className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+          className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm"
         />
         <button
           onClick={() => applyFilters()}
-          className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium"
+          className="px-4 py-2.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium min-h-[44px]"
         >
           Go
         </button>
         <button
           onClick={() => setExpanded(!expanded)}
-          className={`px-2 py-1.5 rounded-lg text-sm border ${
+          className={`px-3 py-2.5 rounded-lg text-sm border min-h-[44px] ${
             activeCount > 0
               ? 'border-[var(--accent)] text-[var(--accent)]'
               : 'border-[var(--border)] text-[var(--muted)]'
@@ -102,7 +103,7 @@ export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
           <button
             key={s}
             onClick={() => toggleChip(species, s, setSpecies, 'species')}
-            className={`px-2.5 py-1 rounded-full text-xs whitespace-nowrap border ${
+            className={`px-3.5 py-2 rounded-full text-sm whitespace-nowrap border ${
               species === s
                 ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                 : 'border-[var(--border)] text-[var(--muted)]'
@@ -124,7 +125,7 @@ export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
                 <button
                   key={a}
                   onClick={() => toggleChip(accessibility, a, setAccessibility, 'accessibility')}
-                  className={`px-2.5 py-1 rounded-full text-xs capitalize border ${
+                  className={`px-3.5 py-2 rounded-full text-sm capitalize border ${
                     accessibility === a
                       ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                       : 'border-[var(--border)] text-[var(--muted)]'
@@ -144,7 +145,7 @@ export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
                 <button
                   key={p}
                   onClick={() => toggleChip(phenology, p, setPhenology, 'phenology')}
-                  className={`px-2.5 py-1 rounded-full text-xs capitalize border ${
+                  className={`px-3.5 py-2 rounded-full text-sm capitalize border ${
                     phenology === p
                       ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                       : 'border-[var(--border)] text-[var(--muted)]'
@@ -165,7 +166,7 @@ export function SearchFilters({ onSearch, userLocation }: SearchFiltersProps) {
                   <button
                     key={r.value}
                     onClick={() => toggleChip(String(radius), String(r.value), (v) => setRadius(Number(v)), 'radius')}
-                    className={`px-2.5 py-1 rounded-full text-xs border ${
+                    className={`px-3.5 py-2 rounded-full text-sm border ${
                       radius === r.value
                         ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                         : 'border-[var(--border)] text-[var(--muted)]'

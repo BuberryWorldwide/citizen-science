@@ -43,7 +43,7 @@ function ChipSelect({ options, value, onChange, capitalize = true }: {
             key={val}
             type="button"
             onClick={() => onChange(value === val ? '' : val)}
-            className={`px-3 py-1 rounded-full text-xs border ${capitalize ? 'capitalize' : ''} ${
+            className={`px-3.5 py-2 rounded-full text-sm border ${capitalize ? 'capitalize' : ''} ${
               value === val
                 ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                 : 'border-[var(--border)] text-[var(--muted)]'
@@ -126,10 +126,10 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 pb-8 space-y-4">
+    <form onSubmit={handleSubmit} className="p-4 pb-8 space-y-4 safe-area-bottom">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-bold">New Observation</h2>
-        <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm">Cancel</button>
+        <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm min-h-[44px] px-3">Cancel</button>
       </div>
 
       {error && <p className="text-red-400 text-sm">{error}</p>}

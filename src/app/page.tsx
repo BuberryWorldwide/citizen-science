@@ -2,26 +2,38 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { TagTreeForm } from '@/components/TagTreeForm';
 import { TreeDetail } from '@/components/TreeDetail';
 import { ObservationForm } from '@/components/ObservationForm';
 import { SearchFilters, SearchParams } from '@/components/SearchFilters';
+import { BottomSheet } from '@/components/BottomSheet';
+import { BottomNav, NavTab } from '@/components/BottomNav';
+import { ProfilePanel } from '@/components/ProfilePanel';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Tree } from '@/types/tree';
 
-const TreeMap = dynamic(() => import('@/components/TreeMap'), { ssr: false });
+const TreeMap = dynamic(() => import('@/components/TreeMap'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-[var(--surface)]" />,
+});
 
 export default function Home() {
+  const router = useRouter();
   const [trees, setTrees] = useState<Tree[]>([]);
   const [selectedTree, setSelectedTree] = useState<string | null>(null);
   const [observingTree, setObservingTree] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [formLat, setFormLat] = useState<number | null>(null);
   const [formLon, setFormLon] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [activeFilters, setActiveFilters] = useState<SearchParams>({});
+  const [activeTab, setActiveTab] = useState<NavTab>('map');
   const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
+  const { data: session } = useSession();
 
   const fetchTrees = useCallback(async (
     bounds?: { south: number; west: number; north: number; east: number },
@@ -97,61 +109,53 @@ export default function Home() {
     setObservingTree(treeId);
   };
 
+  const handleTabChange = (tab: NavTab) => {
+    setActiveTab(tab);
+    if (tab === 'map') {
+      setShowSearch(false);
+      setShowProfile(false);
+    } else if (tab === 'search') {
+      setShowProfile(false);
+      setShowSearch(true);
+    } else if (tab === 'projects') {
+      router.push('/projects');
+    } else if (tab === 'profile') {
+      setShowSearch(false);
+      setShowProfile(true);
+    }
+  };
+
   return (
-    <div className="h-dvh flex flex-col">
-      {/* Offline banner */}
+    <div className="h-dvh relative">
+      {/* Offline / syncing banners — float over map */}
       {!isOnline && (
-        <div className="px-4 py-1.5 bg-yellow-600/20 text-yellow-400 text-xs text-center">
+        <div className="fixed top-12 left-4 right-4 z-[800] px-4 py-1.5 bg-yellow-600/90 text-black text-xs text-center rounded-lg backdrop-blur">
           Offline — changes saved locally
         </div>
       )}
       {syncing && (
-        <div className="px-4 py-1.5 bg-blue-600/20 text-blue-400 text-xs text-center">
+        <div className="fixed top-12 left-4 right-4 z-[800] px-4 py-1.5 bg-blue-600/90 text-white text-xs text-center rounded-lg backdrop-blur">
           Syncing...
         </div>
       )}
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-[var(--surface)] border-b border-[var(--border)]">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold text-[var(--accent)]">Citizen Science</h1>
+      {/* Floating pill — app name + tree count */}
+      <div className="fixed top-0 left-0 right-0 z-[700] flex justify-center pt-3 pointer-events-none">
+        <div className="flex items-center gap-2 px-4 py-2 backdrop-blur rounded-full border border-[var(--border)] pointer-events-auto" style={{ background: 'rgba(26, 26, 26, 0.9)' }}>
+          <span className="text-sm font-bold text-[var(--accent)]">Citizen Science</span>
+          {trees.length > 0 && (
+            <span className="text-xs text-[var(--muted)]">{trees.length}</span>
+          )}
           {pendingCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-yellow-600 text-black text-xs rounded-full font-medium">
+            <span className="px-1.5 py-0.5 bg-yellow-600 text-black text-[10px] rounded-full font-medium">
               {pendingCount}
             </span>
           )}
-          {trees.length > 0 && (
-            <span className="text-xs text-[var(--muted)]">{trees.length} trees</span>
-          )}
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/projects"
-            className="px-2 py-1.5 border border-[var(--border)] text-[var(--muted)] rounded-lg text-xs active:bg-[var(--border)]"
-          >
-            Projects
-          </Link>
-          <a
-            href={`/api/export?format=csv${activeFilters.species ? `&species=${activeFilters.species}` : ''}`}
-            className="px-2 py-1.5 border border-[var(--border)] text-[var(--muted)] rounded-lg text-xs active:bg-[var(--border)]"
-            download
-          >
-            Export
-          </a>
-          <button
-            onClick={handleTagHere}
-            className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium active:bg-[var(--accent-dim)]"
-          >
-            + Tag Tree
-          </button>
-        </div>
-      </header>
+      </div>
 
-      {/* Search */}
-      <SearchFilters onSearch={handleSearch} userLocation={userLocation} />
-
-      {/* Map */}
-      <div className="flex-1 relative">
+      {/* Full-screen map */}
+      <div className="absolute inset-0">
         <TreeMap
           trees={trees}
           userLocation={userLocation}
@@ -161,57 +165,67 @@ export default function Home() {
         />
       </div>
 
-      {/* Tag Tree Form */}
-      {showForm && (
-        <div className="fixed inset-0 z-[1000] bg-black/50" onClick={() => setShowForm(false)}>
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] rounded-t-2xl max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-1 bg-[var(--border)] rounded-full mx-auto mt-3 mb-2" />
-            <TagTreeForm
-              lat={formLat}
-              lon={formLon}
-              onSuccess={handleTreeCreated}
-              onCancel={() => setShowForm(false)}
-            />
-          </div>
-        </div>
-      )}
+      {/* FAB — Tag Tree */}
+      <button
+        onClick={handleTagHere}
+        className="fixed z-[950] right-4 w-14 h-14 rounded-full bg-[var(--accent)] text-black flex items-center justify-center shadow-lg active:bg-[var(--accent-dim)]"
+        style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px) + 1rem)' }}
+        aria-label="Tag a tree"
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
 
-      {/* Tree Detail */}
-      {selectedTree && (
-        <div className="fixed inset-0 z-[1000] bg-black/50" onClick={() => setSelectedTree(null)}>
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] rounded-t-2xl max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-1 bg-[var(--border)] rounded-full mx-auto mt-3 mb-2" />
-            <TreeDetail
-              treeId={selectedTree}
-              onClose={() => setSelectedTree(null)}
-              onAddObservation={handleAddObservation}
-            />
-          </div>
-        </div>
-      )}
+      {/* Bottom Navigation */}
+      <BottomNav
+        active={activeTab}
+        onTabChange={handleTabChange}
+        pendingCount={pendingCount}
+      />
 
-      {/* Observation Form */}
-      {observingTree && (
-        <div className="fixed inset-0 z-[1000] bg-black/50" onClick={() => setObservingTree(null)}>
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] rounded-t-2xl max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-1 bg-[var(--border)] rounded-full mx-auto mt-3 mb-2" />
-            <ObservationForm
-              treeId={observingTree}
-              onSuccess={handleObservationCreated}
-              onCancel={() => setObservingTree(null)}
-            />
-          </div>
-        </div>
-      )}
+      {/* Tag Tree Sheet */}
+      <BottomSheet open={showForm} onClose={() => setShowForm(false)}>
+        <TagTreeForm
+          lat={formLat}
+          lon={formLon}
+          onSuccess={handleTreeCreated}
+          onCancel={() => setShowForm(false)}
+        />
+      </BottomSheet>
+
+      {/* Tree Detail Sheet */}
+      <BottomSheet open={!!selectedTree} onClose={() => setSelectedTree(null)}>
+        {selectedTree && (
+          <TreeDetail
+            treeId={selectedTree}
+            onClose={() => setSelectedTree(null)}
+            onAddObservation={handleAddObservation}
+          />
+        )}
+      </BottomSheet>
+
+      {/* Observation Form Sheet */}
+      <BottomSheet open={!!observingTree} onClose={() => setObservingTree(null)}>
+        {observingTree && (
+          <ObservationForm
+            treeId={observingTree}
+            onSuccess={handleObservationCreated}
+            onCancel={() => setObservingTree(null)}
+          />
+        )}
+      </BottomSheet>
+
+      {/* Search Filters Sheet */}
+      <BottomSheet open={showSearch} onClose={() => { setShowSearch(false); setActiveTab('map'); }}>
+        <SearchFilters onSearch={handleSearch} userLocation={userLocation} overlay />
+      </BottomSheet>
+
+      {/* Profile Sheet */}
+      <BottomSheet open={showProfile} onClose={() => { setShowProfile(false); setActiveTab('map'); }}>
+        <ProfilePanel />
+      </BottomSheet>
     </div>
   );
 }
