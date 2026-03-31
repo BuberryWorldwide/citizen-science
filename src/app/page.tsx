@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { TagTreeForm } from '@/components/TagTreeForm';
 import { TreeDetail } from '@/components/TreeDetail';
 import { ObservationForm } from '@/components/ObservationForm';
+import { SearchFilters, SearchParams } from '@/components/SearchFilters';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Tree } from '@/types/tree';
 
@@ -18,13 +19,24 @@ export default function Home() {
   const [formLat, setFormLat] = useState<number | null>(null);
   const [formLon, setFormLon] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [activeFilters, setActiveFilters] = useState<SearchParams>({});
   const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
 
-  const fetchTrees = useCallback(async (bounds?: { south: number; west: number; north: number; east: number }) => {
+  const fetchTrees = useCallback(async (
+    bounds?: { south: number; west: number; north: number; east: number },
+    filters?: SearchParams,
+  ) => {
     if (!navigator.onLine) return;
+    const f = filters ?? activeFilters;
     try {
       const params = new URLSearchParams();
-      if (bounds) {
+      if (f.species) params.set('species', f.species);
+      if (f.accessibility) params.set('accessibility', f.accessibility);
+      if (f.lat && f.lon && f.radius) {
+        params.set('lat', String(f.lat));
+        params.set('lon', String(f.lon));
+        params.set('radius', String(f.radius));
+      } else if (bounds) {
         params.set('south', String(bounds.south));
         params.set('west', String(bounds.west));
         params.set('north', String(bounds.north));
@@ -36,7 +48,12 @@ export default function Home() {
     } catch (err) {
       console.error('Failed to fetch trees:', err);
     }
-  }, []);
+  }, [activeFilters]);
+
+  const handleSearch = (filters: SearchParams) => {
+    setActiveFilters(filters);
+    fetchTrees(undefined, filters);
+  };
 
   useEffect(() => {
     fetchTrees();
@@ -102,14 +119,29 @@ export default function Home() {
               {pendingCount}
             </span>
           )}
+          {trees.length > 0 && (
+            <span className="text-xs text-[var(--muted)]">{trees.length} trees</span>
+          )}
         </div>
-        <button
-          onClick={handleTagHere}
-          className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium active:bg-[var(--accent-dim)]"
-        >
-          + Tag Tree
-        </button>
+        <div className="flex gap-2">
+          <a
+            href={`/api/export?format=csv${activeFilters.species ? `&species=${activeFilters.species}` : ''}`}
+            className="px-2 py-1.5 border border-[var(--border)] text-[var(--muted)] rounded-lg text-xs active:bg-[var(--border)]"
+            download
+          >
+            Export
+          </a>
+          <button
+            onClick={handleTagHere}
+            className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium active:bg-[var(--accent-dim)]"
+          >
+            + Tag Tree
+          </button>
+        </div>
       </header>
+
+      {/* Search */}
+      <SearchFilters onSearch={handleSearch} userLocation={userLocation} />
 
       {/* Map */}
       <div className="flex-1 relative">
