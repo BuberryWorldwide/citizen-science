@@ -4,20 +4,24 @@ import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { TagTreeForm } from '@/components/TagTreeForm';
 import { TreeDetail } from '@/components/TreeDetail';
+import { ObservationForm } from '@/components/ObservationForm';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Tree } from '@/types/tree';
 
-// Leaflet must be loaded client-side only
 const TreeMap = dynamic(() => import('@/components/TreeMap'), { ssr: false });
 
 export default function Home() {
   const [trees, setTrees] = useState<Tree[]>([]);
   const [selectedTree, setSelectedTree] = useState<string | null>(null);
+  const [observingTree, setObservingTree] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formLat, setFormLat] = useState<number | null>(null);
   const [formLon, setFormLon] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
 
   const fetchTrees = useCallback(async (bounds?: { south: number; west: number; north: number; east: number }) => {
+    if (!navigator.onLine) return;
     try {
       const params = new URLSearchParams();
       if (bounds) {
@@ -36,7 +40,6 @@ export default function Home() {
 
   useEffect(() => {
     fetchTrees();
-    // Get user location
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
@@ -61,22 +64,51 @@ export default function Home() {
 
   const handleTreeCreated = () => {
     setShowForm(false);
+    refreshPendingCount();
     fetchTrees();
+  };
+
+  const handleObservationCreated = () => {
+    setObservingTree(null);
+    setSelectedTree(null);
+    refreshPendingCount();
+  };
+
+  const handleAddObservation = (treeId: string) => {
+    setSelectedTree(null);
+    setObservingTree(treeId);
   };
 
   return (
     <div className="h-dvh flex flex-col">
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="px-4 py-1.5 bg-yellow-600/20 text-yellow-400 text-xs text-center">
+          Offline — changes saved locally
+        </div>
+      )}
+      {syncing && (
+        <div className="px-4 py-1.5 bg-blue-600/20 text-blue-400 text-xs text-center">
+          Syncing...
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 bg-[var(--surface)] border-b border-[var(--border)]">
-        <h1 className="text-lg font-bold text-[var(--accent)]">Citizen Science</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={handleTagHere}
-            className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium active:bg-[var(--accent-dim)]"
-          >
-            + Tag Tree
-          </button>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold text-[var(--accent)]">Citizen Science</h1>
+          {pendingCount > 0 && (
+            <span className="px-1.5 py-0.5 bg-yellow-600 text-black text-xs rounded-full font-medium">
+              {pendingCount}
+            </span>
+          )}
         </div>
+        <button
+          onClick={handleTagHere}
+          className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium active:bg-[var(--accent-dim)]"
+        >
+          + Tag Tree
+        </button>
       </header>
 
       {/* Map */}
@@ -90,7 +122,7 @@ export default function Home() {
         />
       </div>
 
-      {/* Tag Tree Form (slide-up panel) */}
+      {/* Tag Tree Form */}
       {showForm && (
         <div className="fixed inset-0 z-[1000] bg-black/50" onClick={() => setShowForm(false)}>
           <div
@@ -108,7 +140,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Tree Detail (slide-up panel) */}
+      {/* Tree Detail */}
       {selectedTree && (
         <div className="fixed inset-0 z-[1000] bg-black/50" onClick={() => setSelectedTree(null)}>
           <div
@@ -116,7 +148,28 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-1 bg-[var(--border)] rounded-full mx-auto mt-3 mb-2" />
-            <TreeDetail treeId={selectedTree} onClose={() => setSelectedTree(null)} />
+            <TreeDetail
+              treeId={selectedTree}
+              onClose={() => setSelectedTree(null)}
+              onAddObservation={handleAddObservation}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Observation Form */}
+      {observingTree && (
+        <div className="fixed inset-0 z-[1000] bg-black/50" onClick={() => setObservingTree(null)}>
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] rounded-t-2xl max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-1 bg-[var(--border)] rounded-full mx-auto mt-3 mb-2" />
+            <ObservationForm
+              treeId={observingTree}
+              onSuccess={handleObservationCreated}
+              onCancel={() => setObservingTree(null)}
+            />
           </div>
         </div>
       )}

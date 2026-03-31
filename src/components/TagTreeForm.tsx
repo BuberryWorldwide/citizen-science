@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { OfflineStore } from '@/lib/offline/store';
 
 interface TagTreeFormProps {
   lat: number | null;
@@ -73,25 +75,37 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     setSubmitting(true);
     setError('');
 
-    try {
-      const res = await fetch('/api/trees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          species: species || null,
-          species_variety: speciesVariety || null,
-          lat, lon,
-          accessibility,
-          use_potential: usePotential.length > 0 ? usePotential : undefined,
-          notes: notes || null,
-          health: health || null,
-          trunk_width: trunkWidth || null,
-          phenology: phenology || null,
-        }),
-      });
+    const treeData = {
+      species: species || undefined,
+      species_variety: speciesVariety || undefined,
+      lat, lon,
+      accessibility,
+      use_potential: usePotential.length > 0 ? usePotential : undefined,
+      notes: notes || undefined,
+      health: health || undefined,
+      trunk_width: trunkWidth || undefined,
+      phenology: phenology || undefined,
+    };
 
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+    try {
+      if (navigator.onLine) {
+        const res = await fetch('/api/trees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(treeData),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+      } else {
+        // Save to IndexedDB for later sync
+        await OfflineStore.addPendingTree({
+          local_id: uuidv4(),
+          ...treeData,
+          observation_notes: notes || undefined,
+          created_at: new Date().toISOString(),
+          synced: false,
+        });
+      }
       onSuccess();
     } catch (err) {
       setError((err as Error).message);

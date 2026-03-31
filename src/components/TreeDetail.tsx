@@ -6,9 +6,10 @@ import { TreeWithObservations } from '@/types/tree';
 interface TreeDetailProps {
   treeId: string;
   onClose: () => void;
+  onAddObservation?: (treeId: string) => void;
 }
 
-export function TreeDetail({ treeId, onClose }: TreeDetailProps) {
+export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProps) {
   const [tree, setTree] = useState<TreeWithObservations | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -66,6 +67,16 @@ export function TreeDetail({ treeId, onClose }: TreeDetailProps) {
 
       {tree.notes && (
         <p className="text-sm text-[var(--muted)] mb-4 italic">{tree.notes}</p>
+      )}
+
+      {/* Add observation button */}
+      {onAddObservation && (
+        <button
+          onClick={() => onAddObservation(treeId)}
+          className="w-full py-2 border border-[var(--accent)] text-[var(--accent)] rounded-lg text-sm font-medium active:bg-[var(--accent)]/10 mb-4"
+        >
+          + Add Observation
+        </button>
       )}
 
       {/* Observation timeline */}
