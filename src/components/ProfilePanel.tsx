@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
+import { SpeciesJournal } from './SpeciesJournal';
+import {
+  IconTree, IconEye, IconCamera, IconStar, IconFlame, IconCheck,
+  IconChart, IconBook, IconAward, IconLogOut, IconTrophy, IconTarget,
+  IconSearch, IconLock, IconFolder,
+} from '@/components/Icons';
 
 interface UserStats {
   total_points: number;
@@ -72,12 +78,51 @@ function formatTimeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-const reasonIcons: Record<string, string> = {
-  tree_tagged: '\u{1F333}',
-  observation: '\u{1F50D}',
-  photo_uploaded: '\u{1F4F7}',
-  bonus: '\u{2B50}',
+const REASON_ICONS: Record<string, React.FC<{ size?: number; color?: string }>> = {
+  tree_tagged: IconTree,
+  observation: IconSearch,
+  photo_uploaded: IconCamera,
+  bonus: IconStar,
 };
+
+/** Map icon name strings (from achievements.ts) to icon components */
+const ACHIEVEMENT_ICON_MAP: Record<string, React.FC<{ size?: number; color?: string; className?: string }>> = {
+  tree: IconTree,
+  eye: IconEye,
+  camera: IconCamera,
+  star: IconStar,
+  flame: IconFlame,
+  award: IconAward,
+  trophy: IconTrophy,
+  target: IconTarget,
+  book: IconBook,
+  search: IconSearch,
+  lock: IconLock,
+  folder: IconFolder,
+  check: IconCheck,
+};
+
+interface Achievement {
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  category: string;
+  earned: boolean;
+  earned_at: string | null;
+}
+
+interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  target: number;
+  reward_points: number;
+  progress: number;
+  completed: boolean;
+}
+
+type ProfileTab = 'stats' | 'journal' | 'achievements';
 
 export function ProfilePanel() {
   const { data: session } = useSession();
@@ -85,6 +130,10 @@ export function ProfilePanel() {
   const [recent, setRecent] = useState<LedgerEntry[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [foundSpecies, setFoundSpecies] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<ProfileTab>('stats');
 
   useEffect(() => {
     if (!session) return;
@@ -95,6 +144,7 @@ export function ProfilePanel() {
         if (json.success) {
           setStats(json.data.stats);
           setRecent(json.data.recent || []);
+          setFoundSpecies(json.data.foundSpecies || []);
         }
       })
       .catch(() => {});
@@ -108,6 +158,16 @@ export function ProfilePanel() {
           if (rank !== undefined && rank >= 0) setUserRank(rank + 1);
         }
       })
+      .catch(() => {});
+
+    fetch('/api/achievements')
+      .then(r => r.json())
+      .then(json => { if (json.success) setAchievements(json.data || []); })
+      .catch(() => {});
+
+    fetch('/api/challenges')
+      .then(r => r.json())
+      .then(json => { if (json.success) setChallenges(json.data || []); })
       .catch(() => {});
   }, [session]);
 
@@ -134,27 +194,17 @@ export function ProfilePanel() {
   const initial = (session.user.name || session.user.email || '?')[0].toUpperCase();
   const level = getLevel(stats?.total_points ?? 0);
 
-  const statCards = [
-    { label: 'Trees', value: stats?.trees_tagged ?? 0, icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 14l3-6H4l3 6" /><path d="M15 18l2-4H7l2 4" /><line x1="12" y1="18" x2="12" y2="22" />
-      </svg>
-    ), color: '#22c55e' },
-    { label: 'Observations', value: stats?.observations_made ?? 0, icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-      </svg>
-    ), color: '#3b82f6' },
-    { label: 'Photos', value: stats?.photos_uploaded ?? 0, icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-      </svg>
-    ), color: '#a855f7' },
-    { label: 'Points', value: stats?.total_points ?? 0, icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ), color: '#eab308' },
+  const statCards: { label: string; value: number; icon: React.FC<{ size?: number; color?: string }>; color: string }[] = [
+    { label: 'Trees', value: stats?.trees_tagged ?? 0, icon: IconTree, color: 'var(--accent)' },
+    { label: 'Observations', value: stats?.observations_made ?? 0, icon: IconEye, color: '#3b82f6' },
+    { label: 'Photos', value: stats?.photos_uploaded ?? 0, icon: IconCamera, color: 'var(--secondary)' },
+    { label: 'Points', value: stats?.total_points ?? 0, icon: IconStar, color: 'var(--warn, #eab308)' },
+  ];
+
+  const profileTabs: { id: ProfileTab; label: string; icon: React.FC<{ size?: number; color?: string }> }[] = [
+    { id: 'stats', label: 'Stats', icon: IconChart },
+    { id: 'journal', label: 'Journal', icon: IconBook },
+    { id: 'achievements', label: 'Badges', icon: IconAward },
   ];
 
   return (
@@ -189,11 +239,7 @@ export function ProfilePanel() {
             className="mt-1 p-2 text-[var(--muted)] hover:text-red-400 rounded-lg transition-colors"
             aria-label="Sign out"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <IconLogOut size={20} />
           </button>
         </div>
 
@@ -214,72 +260,186 @@ export function ProfilePanel() {
         )}
       </div>
 
-      {/* Stats grid */}
-      <div className="px-4 grid grid-cols-4 gap-2">
-        {statCards.map(s => (
-          <div
-            key={s.label}
-            className="flex flex-col items-center gap-1 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl"
-          >
-            <div className="opacity-60" style={{ color: s.color }}>{s.icon}</div>
-            <span className="text-lg font-bold" style={{ color: s.color }}>{s.value}</span>
-            <span className="text-[10px] text-[var(--muted)]">{s.label}</span>
-          </div>
-        ))}
+      {/* Profile tabs */}
+      <div className="px-4 flex gap-1 bg-[var(--bg)] rounded-xl p-1 mx-4">
+        {profileTabs.map(tab => {
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'bg-[var(--surface)] text-[var(--fg)] shadow-sm'
+                  : 'text-[var(--muted)]'
+              }`}
+            >
+              <TabIcon size={14} />{tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Recent activity */}
-      {recent.length > 0 && (
-        <div className="px-4">
-          <h3 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">Recent Activity</h3>
-          <div className="space-y-1">
-            {recent.slice(0, 8).map((entry, i) => (
-              <div key={i} className="flex items-center gap-2.5 py-2 px-3 bg-[var(--surface)] rounded-lg">
-                <span className="text-base">{reasonIcons[entry.reason] || '\u{1F4CC}'}</span>
-                <span className="flex-1 text-sm truncate">{formatReason(entry.reason)}</span>
-                <span className="text-xs font-medium text-[var(--accent)]">+{entry.points}</span>
-                <span className="text-[10px] text-[var(--muted)] w-12 text-right">{formatTimeAgo(entry.created_at)}</span>
-              </div>
-            ))}
+      {/* Stats tab */}
+      {activeTab === 'stats' && (
+        <>
+          {/* Stats grid */}
+          <div className="px-4 grid grid-cols-4 gap-2">
+            {statCards.map(s => {
+              const StatIcon = s.icon;
+              return (
+                <div
+                  key={s.label}
+                  className="flex flex-col items-center gap-1 p-3 bg-[var(--surface-raised,var(--surface))] border border-[var(--border)] rounded-xl"
+                >
+                  <StatIcon size={22} color={s.color} />
+                  <span className="text-lg font-bold" style={{ color: s.color }}>{s.value}</span>
+                  <span className="text-[10px] text-[var(--muted)]">{s.label}</span>
+                </div>
+              );
+            })}
           </div>
+
+          {/* Streak */}
+          {stats && (stats as UserStats & { current_streak?: number }).current_streak != null && (
+            <div className="px-4">
+              <div className="flex items-center gap-3 p-3 bg-[var(--surface-raised,var(--surface))] border border-[var(--border)] rounded-xl">
+                <IconFlame size={28} color="#f97316" />
+                <div className="flex-1">
+                  <span className="text-sm font-bold">{(stats as UserStats & { current_streak?: number }).current_streak}-day streak</span>
+                  <p className="text-[10px] text-[var(--muted)]">Keep scouting daily!</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active challenges */}
+          {challenges.length > 0 && (
+            <div className="px-4">
+              <h3 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">This Week&apos;s Challenges</h3>
+              <div className="space-y-2">
+                {challenges.map(c => (
+                  <div key={c.id} className="p-3 bg-[var(--surface-raised,var(--surface))] border border-[var(--border)] rounded-xl">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-sm font-medium">{c.title}</span>
+                      <span className="text-[10px] text-[var(--warn)] font-bold">+{c.reward_points} XP</span>
+                    </div>
+                    <p className="text-xs text-[var(--muted)] mb-2">{c.description}</p>
+                    <div className="h-2 bg-[var(--bg)] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min((c.progress / c.target) * 100, 100)}%`,
+                          background: c.completed ? 'var(--accent)' : 'var(--secondary)',
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[10px] text-[var(--muted)]">{c.progress}/{c.target}</span>
+                      {c.completed && (
+                        <span className="text-[10px] text-[var(--accent)] font-bold flex items-center gap-0.5">
+                          <IconCheck size={12} color="var(--accent)" /> Complete!
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent activity */}
+          {recent.length > 0 && (
+            <div className="px-4">
+              <h3 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">Recent Activity</h3>
+              <div className="space-y-1">
+                {recent.slice(0, 8).map((entry, i) => {
+                  const ReasonIcon = REASON_ICONS[entry.reason] || IconStar;
+                  return (
+                    <div key={i} className="flex items-center gap-2.5 py-2 px-3 bg-[var(--surface)] rounded-lg">
+                      <ReasonIcon size={18} color="var(--muted)" />
+                      <span className="flex-1 text-sm truncate">{formatReason(entry.reason)}</span>
+                      <span className="text-xs font-medium text-[var(--accent)]">+{entry.points}</span>
+                      <span className="text-[10px] text-[var(--muted)] w-12 text-right">{formatTimeAgo(entry.created_at)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Leaderboard */}
+          {leaderboard.length > 0 && (
+            <div className="px-4">
+              <h3 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">Leaderboard</h3>
+              <div className="space-y-1">
+                {leaderboard.slice(0, 10).map((entry, i) => {
+                  const isMe = entry.user_id === session.user.id;
+                  const medals = ['#eab308', '#94a3b8', '#cd7f32'];
+                  return (
+                    <div
+                      key={entry.user_id}
+                      className={`flex items-center gap-2 py-2.5 px-3 rounded-lg text-sm ${
+                        isMe ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/20' : 'bg-[var(--surface)]'
+                      }`}
+                    >
+                      <span
+                        className="w-6 text-center font-bold text-xs"
+                        style={{ color: medals[i] || 'var(--muted)' }}
+                      >
+                        {i + 1}
+                      </span>
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                        style={{
+                          background: isMe ? 'var(--accent)' : 'var(--border)',
+                          color: isMe ? 'black' : 'var(--muted)',
+                        }}
+                      >
+                        {(entry.name || entry.email || '?')[0].toUpperCase()}
+                      </div>
+                      <span className={`flex-1 truncate ${isMe ? 'font-medium' : ''}`}>
+                        {entry.name || entry.email?.split('@')[0] || 'User'}
+                        {isMe && <span className="text-[10px] text-[var(--muted)] ml-1">(you)</span>}
+                      </span>
+                      <span className="text-xs font-medium text-[var(--accent)]">{entry.total_points}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Journal tab */}
+      {activeTab === 'journal' && (
+        <div className="px-4">
+          <SpeciesJournal foundSpecies={foundSpecies} />
         </div>
       )}
 
-      {/* Leaderboard */}
-      {leaderboard.length > 0 && (
-        <div className="px-4">
-          <h3 className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">Leaderboard</h3>
-          <div className="space-y-1">
-            {leaderboard.slice(0, 10).map((entry, i) => {
-              const isMe = entry.user_id === session.user.id;
-              const medals = ['#eab308', '#94a3b8', '#cd7f32'];
+      {/* Achievements tab */}
+      {activeTab === 'achievements' && (
+        <div className="px-4 space-y-2">
+          <p className="text-xs text-[var(--muted)]">
+            {achievements.filter(a => a.earned).length} of {achievements.length} earned
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {achievements.map(a => {
+              const AchIcon = ACHIEVEMENT_ICON_MAP[a.icon] || IconAward;
               return (
                 <div
-                  key={entry.user_id}
-                  className={`flex items-center gap-2 py-2.5 px-3 rounded-lg text-sm ${
-                    isMe ? 'bg-[var(--accent)]/10 border border-[var(--accent)]/20' : 'bg-[var(--surface)]'
+                  key={a.key}
+                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-center transition-all ${
+                    a.earned
+                      ? 'bg-[var(--surface-raised,var(--surface))] border-[var(--warn)]/30'
+                      : 'bg-[var(--bg)] border-[var(--border)] opacity-40'
                   }`}
                 >
-                  <span
-                    className="w-6 text-center font-bold text-xs"
-                    style={{ color: medals[i] || 'var(--muted)' }}
-                  >
-                    {i + 1}
-                  </span>
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                    style={{
-                      background: isMe ? 'var(--accent)' : 'var(--border)',
-                      color: isMe ? 'black' : 'var(--muted)',
-                    }}
-                  >
-                    {(entry.name || entry.email || '?')[0].toUpperCase()}
-                  </div>
-                  <span className={`flex-1 truncate ${isMe ? 'font-medium' : ''}`}>
-                    {entry.name || entry.email?.split('@')[0] || 'User'}
-                    {isMe && <span className="text-[10px] text-[var(--muted)] ml-1">(you)</span>}
-                  </span>
-                  <span className="text-xs font-medium text-[var(--accent)]">{entry.total_points}</span>
+                  <AchIcon size={28} color={a.earned ? 'var(--warn)' : 'var(--muted)'} />
+                  <span className="text-[10px] font-bold leading-tight">{a.title}</span>
+                  <span className="text-[9px] text-[var(--muted)] leading-tight">{a.description}</span>
                 </div>
               );
             })}

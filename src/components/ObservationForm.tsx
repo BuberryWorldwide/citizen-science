@@ -7,7 +7,7 @@ import { compressImage } from '@/lib/image';
 
 interface ObservationFormProps {
   treeId: string;
-  onSuccess: () => void;
+  onSuccess: (rewards?: unknown) => void;
   onCancel: () => void;
 }
 
@@ -132,6 +132,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
     };
 
     try {
+      let apiRewards: unknown = null;
       if (navigator.onLine) {
         const res = await fetch('/api/observations', {
           method: 'POST',
@@ -140,6 +141,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error);
+        apiRewards = json.rewards;
 
         // Upload photo if captured
         if (photoFile && json.data?.id) {
@@ -174,7 +176,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
           });
         }
       }
-      onSuccess();
+      onSuccess(apiRewards);
     } catch (err) {
       setError((err as Error).message);
     } finally {

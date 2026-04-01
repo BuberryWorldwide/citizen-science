@@ -3,6 +3,7 @@ import { ObservationManager } from '@/lib/db/trees';
 import { PointsManager } from '@/lib/db/points';
 import { getCurrentUserId } from '@/lib/auth/session';
 import { moderate } from '@/lib/moderation';
+import { processGamification } from '@/lib/db/gamification';
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,11 +37,13 @@ export async function POST(request: NextRequest) {
       local_id: body.local_id,
     });
 
+    let rewards = null;
     if (userId) {
       await PointsManager.award(userId, 'observation', observation.id);
+      rewards = await processGamification(userId, 'observation', 5);
     }
 
-    return NextResponse.json({ success: true, data: observation }, { status: 201 });
+    return NextResponse.json({ success: true, data: observation, rewards }, { status: 201 });
   } catch (error) {
     console.error('Error creating observation:', error);
     return NextResponse.json({ success: false, error: 'Failed to create observation' }, { status: 500 });

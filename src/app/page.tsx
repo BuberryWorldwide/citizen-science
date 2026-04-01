@@ -12,9 +12,12 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { BottomNav, NavTab } from '@/components/BottomNav';
 import { ProfilePanel } from '@/components/ProfilePanel';
 import { BuberryLogo } from '@/components/BuberryLogo';
+import { RewardToast } from '@/components/RewardToast';
+import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { Tree } from '@/types/tree';
+import type { BaseLayer, MapOverlays } from '@/components/TreeMap';
 
 const TreeMap = dynamic(() => import('@/components/TreeMap'), {
   ssr: false,
@@ -37,7 +40,15 @@ export default function Home() {
   const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
   const { data: session } = useSession();
   const { theme, toggle: toggleTheme } = useTheme();
-  const [mapStyle, setMapStyle] = useState<'standard' | 'satellite' | 'topo'>('standard');
+  const [baseLayer, setBaseLayer] = useState<BaseLayer>('standard');
+  const [overlays, setOverlays] = useState<MapOverlays>({ heatmap: false, myTrees: false, speciesColor: true });
+  const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const [pendingRewards, setPendingRewards] = useState<{
+    xpAwarded: number;
+    newAchievements: { key: string; title: string; icon: string; description: string }[];
+    completedChallenges: string[];
+    currentStreak: number;
+  } | null>(null);
 
   const fetchTrees = useCallback(async (
     bounds?: { south: number; west: number; north: number; east: number },
@@ -96,16 +107,18 @@ export default function Home() {
     setShowForm(true);
   };
 
-  const handleTreeCreated = () => {
+  const handleTreeCreated = (rewards?: unknown) => {
     setShowForm(false);
     refreshPendingCount();
     fetchTrees();
+    if (rewards) setPendingRewards(rewards as typeof pendingRewards);
   };
 
-  const handleObservationCreated = () => {
+  const handleObservationCreated = (rewards?: unknown) => {
     setObservingTree(null);
     setSelectedTree(null);
     refreshPendingCount();
+    if (rewards) setPendingRewards(rewards as typeof pendingRewards);
   };
 
   const handleAddObservation = (treeId: string) => {
@@ -129,78 +142,121 @@ export default function Home() {
     }
   };
 
+  const toggleOverlay = (key: keyof MapOverlays) => {
+    setOverlays(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   return (
     <div className="h-dvh relative">
-      {/* Offline / syncing banners — float over map */}
+      {/* Offline / syncing banners */}
       {!isOnline && (
-        <div className="fixed top-12 left-4 right-4 z-[800] px-4 py-1.5 bg-yellow-600/90 text-black text-xs text-center rounded-lg backdrop-blur">
+        <div className="fixed top-14 left-4 right-4 z-[800] px-4 py-2 bg-amber-500/90 text-black text-xs text-center rounded-xl backdrop-blur font-medium">
           Offline — changes saved locally
         </div>
       )}
       {syncing && (
-        <div className="fixed top-12 left-4 right-4 z-[800] px-4 py-1.5 bg-blue-600/90 text-white text-xs text-center rounded-lg backdrop-blur">
+        <div className="fixed top-14 left-4 right-4 z-[800] px-4 py-2 bg-blue-500/90 text-white text-xs text-center rounded-xl backdrop-blur font-medium">
           Syncing...
         </div>
       )}
 
-      {/* Floating header */}
-      <div className="fixed top-0 left-0 right-0 z-[700] flex items-center justify-between px-3 pt-3 pointer-events-none">
-        {/* Logo pill */}
-        <div className="flex items-center gap-2 px-3 py-1.5 backdrop-blur rounded-full border border-[var(--border)] pointer-events-auto" style={{ background: 'var(--pill-bg)' }}>
-          <BuberryLogo size={22} />
-          <span className="text-sm font-bold text-[var(--accent)]">Citizen Science</span>
-          {trees.length > 0 && (
-            <span className="text-xs text-[var(--muted)]">{trees.length}</span>
-          )}
+      {/* Top-left: Logo */}
+      <div className="fixed top-3 left-3 z-[700] pointer-events-auto">
+        <div
+          className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 backdrop-blur rounded-2xl border border-[var(--border)] shadow-sm"
+          style={{ background: 'var(--pill-bg)' }}
+        >
+          <BuberryLogo size={32} />
+          <div className="flex flex-col leading-none">
+            <span className="text-[11px] font-bold text-[var(--accent)]">Citizen Science</span>
+            {trees.length > 0 && (
+              <span className="text-[10px] text-[var(--muted)]">{trees.length} trees</span>
+            )}
+          </div>
           {pendingCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-yellow-600 text-black text-[10px] rounded-full font-medium">
+            <span className="px-1.5 py-0.5 bg-[var(--warn)] text-black text-[10px] rounded-full font-bold ml-1">
               {pendingCount}
             </span>
           )}
         </div>
+      </div>
 
-        {/* Controls pill */}
-        <div className="flex items-center gap-1 px-1.5 py-1 backdrop-blur rounded-full border border-[var(--border)] pointer-events-auto" style={{ background: 'var(--pill-bg)' }}>
-          {/* Map style toggle */}
-          {(['standard', 'satellite', 'topo'] as const).map(style => (
-            <button
-              key={style}
-              onClick={() => setMapStyle(style)}
-              className={`px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
-                mapStyle === style
-                  ? 'bg-[var(--accent)] text-black'
-                  : 'text-[var(--muted)] hover:text-[var(--fg)]'
-              }`}
-              aria-label={`${style} map`}
-            >
-              {style === 'standard' ? 'Map' : style === 'satellite' ? 'Sat' : 'Topo'}
-            </button>
-          ))}
-
-          {/* Divider */}
-          <div className="w-px h-4 bg-[var(--border)] mx-0.5" />
-
-          {/* Theme toggle */}
+      {/* Top-right: Layer picker + theme (next to zoom) */}
+      <div className="fixed top-3 right-14 z-[700] flex items-center gap-1.5 pointer-events-auto">
+        <div className="relative">
           <button
-            onClick={toggleTheme}
-            className="p-1.5 rounded-full text-[var(--muted)] hover:text-[var(--fg)] transition-colors"
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            onClick={() => setShowLayerPanel(!showLayerPanel)}
+            className="w-9 h-9 flex items-center justify-center backdrop-blur rounded-xl border border-[var(--border)] shadow-sm transition-colors"
+            style={{ background: showLayerPanel ? 'var(--accent)' : 'var(--pill-bg)' }}
+            aria-label="Map layers"
           >
-            {theme === 'dark' ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            )}
+            <IconLayers size={18} color={showLayerPanel ? '#000' : undefined} />
           </button>
+
+          {showLayerPanel && (
+            <div
+              className="absolute top-11 right-0 w-48 backdrop-blur rounded-xl border border-[var(--border)] shadow-lg overflow-hidden animate-bounce-in"
+              style={{ background: 'var(--pill-bg)' }}
+            >
+              {/* Base layers */}
+              <div className="p-2 border-b border-[var(--border)]">
+                <p className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-semibold px-2 mb-1">Base Map</p>
+                {(['standard', 'satellite'] as const).map(layer => (
+                  <button
+                    key={layer}
+                    onClick={() => setBaseLayer(layer)}
+                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs ${
+                      baseLayer === layer ? 'text-[var(--accent)] bg-[var(--accent-glow)]' : 'text-[var(--fg)]'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: baseLayer === layer ? 'var(--accent)' : 'var(--border)' }}>
+                      {baseLayer === layer && <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />}
+                    </span>
+                    {layer === 'standard' ? 'Standard' : 'Satellite'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Overlay toggles */}
+              <div className="p-2">
+                <p className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-semibold px-2 mb-1">Overlays</p>
+                {([
+                  { key: 'heatmap' as const, label: 'Heat Map', icon: <IconHeat size={14} /> },
+                  { key: 'myTrees' as const, label: 'My Trees', icon: <IconUser size={14} /> },
+                  { key: 'speciesColor' as const, label: 'Species Color', icon: <IconTree size={14} /> },
+                ]).map(item => (
+                  <button
+                    key={item.key}
+                    onClick={() => toggleOverlay(item.key)}
+                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-[var(--fg)]"
+                  >
+                    <span
+                      className="w-4 h-4 rounded flex items-center justify-center text-[10px] transition-colors"
+                      style={{
+                        background: overlays[item.key] ? 'var(--accent)' : 'transparent',
+                        border: overlays[item.key] ? 'none' : '1.5px solid var(--border)',
+                        color: overlays[item.key] ? '#000' : 'transparent',
+                      }}
+                    >
+                      {overlays[item.key] ? '\u2713' : ''}
+                    </span>
+                    <span className="opacity-60">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+
+        <button
+          onClick={toggleTheme}
+          className="w-9 h-9 flex items-center justify-center backdrop-blur rounded-xl border border-[var(--border)] shadow-sm"
+          style={{ background: 'var(--pill-bg)' }}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}
+        </button>
       </div>
 
       {/* Full-screen map */}
@@ -208,7 +264,9 @@ export default function Home() {
         <TreeMap
           trees={trees}
           userLocation={userLocation}
-          mapStyle={mapStyle}
+          baseLayer={baseLayer}
+          overlays={overlays}
+          userId={session?.user?.id}
           onMapClick={handleMapClick}
           onTreeSelect={(id) => setSelectedTree(id)}
           onBoundsChange={fetchTrees}
@@ -218,14 +276,12 @@ export default function Home() {
       {/* FAB — Tag Tree */}
       <button
         onClick={handleTagHere}
-        className="fixed z-[950] right-4 w-14 h-14 rounded-full bg-[var(--accent)] text-black flex items-center justify-center shadow-lg active:bg-[var(--accent-dim)]"
-        style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px) + 1rem)' }}
+        className="fixed z-[950] left-1/2 -translate-x-1/2 flex items-center gap-2 px-5 h-12 rounded-full bg-[var(--accent)] text-black font-bold text-sm shadow-lg active:scale-95 transition-transform animate-pulse-glow"
+        style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
         aria-label="Tag a tree"
       >
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
+        <IconPlus size={18} color="#000" />
+        Tag a Tree
       </button>
 
       {/* Bottom Navigation */}
@@ -276,6 +332,9 @@ export default function Home() {
       <BottomSheet open={showProfile} onClose={() => { setShowProfile(false); setActiveTab('map'); }}>
         <ProfilePanel />
       </BottomSheet>
+
+      {/* Reward Toasts */}
+      <RewardToast rewards={pendingRewards} onDismiss={() => setPendingRewards(null)} />
     </div>
   );
 }

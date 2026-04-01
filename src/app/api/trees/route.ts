@@ -3,6 +3,7 @@ import { TreeManager, ObservationManager } from '@/lib/db/trees';
 import { PointsManager } from '@/lib/db/points';
 import { getCurrentUserId } from '@/lib/auth/session';
 import { moderate } from '@/lib/moderation';
+import { processGamification } from '@/lib/db/gamification';
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,12 +79,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Award points
+    // Award points + gamification
+    let rewards = null;
     if (userId) {
       await PointsManager.award(userId, 'tree_tagged', tree.id);
+      rewards = await processGamification(userId, 'tree_tagged', 10);
     }
 
-    return NextResponse.json({ success: true, data: tree }, { status: 201 });
+    return NextResponse.json({ success: true, data: tree, rewards }, { status: 201 });
   } catch (error) {
     console.error('Error creating tree:', error);
     return NextResponse.json({ success: false, error: 'Failed to create tree' }, { status: 500 });

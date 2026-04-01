@@ -8,7 +8,7 @@ import { compressImage } from '@/lib/image';
 interface TagTreeFormProps {
   lat: number | null;
   lon: number | null;
-  onSuccess: () => void;
+  onSuccess: (rewards?: unknown) => void;
   onCancel: () => void;
 }
 
@@ -112,6 +112,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     };
 
     try {
+      let apiRewards: unknown = null;
       if (navigator.onLine) {
         const res = await fetch('/api/trees', {
           method: 'POST',
@@ -120,6 +121,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error);
+        apiRewards = json.rewards;
 
         // Upload photo if one was captured
         if (photoFile && json.data?.id) {
@@ -179,7 +181,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
           });
         }
       }
-      onSuccess();
+      onSuccess(apiRewards);
     } catch (err) {
       setError((err as Error).message);
     } finally {
