@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObservationManager } from '@/lib/db/trees';
 import { PointsManager } from '@/lib/db/points';
 import { getCurrentUserId } from '@/lib/auth/session';
+import { moderate } from '@/lib/moderation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,11 @@ export async function POST(request: NextRequest) {
 
     if (!body.tree_id) {
       return NextResponse.json({ success: false, error: 'tree_id is required' }, { status: 400 });
+    }
+
+    const mod = moderate({ notes: body.notes });
+    if (!mod.passed) {
+      return NextResponse.json({ success: false, error: `Inappropriate content in ${mod.field}` }, { status: 400 });
     }
 
     const observation = await ObservationManager.create({

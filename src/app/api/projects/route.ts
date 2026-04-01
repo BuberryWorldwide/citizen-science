@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ProjectManager } from '@/lib/db/projects';
+import { moderate } from '@/lib/moderation';
 
 export async function GET() {
   try {
@@ -16,6 +17,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     if (!body.name) {
       return NextResponse.json({ success: false, error: 'name is required' }, { status: 400 });
+    }
+
+    const mod = moderate({ name: body.name, description: body.description });
+    if (!mod.passed) {
+      return NextResponse.json({ success: false, error: `Inappropriate content in ${mod.field}` }, { status: 400 });
     }
 
     const project = await ProjectManager.create(body.name, body.description);

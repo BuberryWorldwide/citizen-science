@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { BuberryLogo } from '@/components/BuberryLogo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -48,9 +49,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-dvh bg-[var(--bg)] flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-[var(--accent)]">Citizen Science</h1>
-          <p className="text-sm text-[var(--muted)] mt-1">Scout valuable tree genetics</p>
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <BuberryLogo size={48} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--accent)]">Citizen Science</h1>
+            <p className="text-sm text-[var(--muted)] mt-1">Scout valuable tree genetics</p>
+          </div>
         </div>
 
         {/* Google OAuth */}

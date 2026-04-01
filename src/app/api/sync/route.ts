@@ -3,6 +3,7 @@ import { TreeManager, ObservationManager } from '@/lib/db/trees';
 import { PointsManager } from '@/lib/db/points';
 import { getCurrentUserId } from '@/lib/auth/session';
 import { query } from '@/lib/db/connection';
+import { moderate } from '@/lib/moderation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +15,12 @@ export async function POST(request: NextRequest) {
     if (body.trees?.length) {
       for (const treeData of body.trees) {
         try {
+          const mod = moderate({ species_variety: treeData.species_variety, notes: treeData.notes, observation_notes: treeData.observation_notes });
+          if (!mod.passed) {
+            results.errors.push(`Tree rejected: inappropriate content in ${mod.field}`);
+            continue;
+          }
+
           // Idempotency: check if local_id already exists via first observation
           if (treeData.local_id) {
             const existing = await query(
@@ -61,6 +68,12 @@ export async function POST(request: NextRequest) {
     if (body.observations?.length) {
       for (const obsData of body.observations) {
         try {
+          const mod = moderate({ notes: obsData.notes });
+          if (!mod.passed) {
+            results.errors.push(`Observation rejected: inappropriate content in ${mod.field}`);
+            continue;
+          }
+
           if (obsData.local_id) {
             const existing = await query(
               'SELECT id FROM observations WHERE local_id = $1',

@@ -71,7 +71,7 @@ export function BottomSheet({ open, onClose, children }: BottomSheetProps) {
   return (
     <div className="fixed inset-0 z-[1000]" onClick={onClose}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" />
+      <div className="absolute inset-0 animate-fade-in" style={{ background: 'var(--overlay)' }} />
       {/* Sheet */}
       <div
         ref={sheetRef}

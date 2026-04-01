@@ -5,7 +5,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Tree } from '@/types/tree';
 
-// Fix Leaflet's default icon path issue with bundlers
 const treeIcon = L.divIcon({
   className: 'tree-marker',
   html: '<div style="width:12px;height:12px;background:#22c55e;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>',
@@ -20,16 +19,38 @@ const userIcon = L.divIcon({
   iconAnchor: [9, 9],
 });
 
+export type MapStyle = 'standard' | 'satellite' | 'topo';
+
+const TILE_LAYERS: Record<MapStyle, { url: string; attribution: string; maxZoom: number }> = {
+  standard: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OSM contributors',
+    maxZoom: 19,
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+    maxZoom: 18,
+  },
+  topo: {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenTopoMap (CC-BY-SA)',
+    maxZoom: 17,
+  },
+};
+
 interface TreeMapProps {
   trees: Tree[];
   userLocation: [number, number] | null;
+  mapStyle?: MapStyle;
   onMapClick: (lat: number, lon: number) => void;
   onTreeSelect: (id: string) => void;
   onBoundsChange: (bounds: { south: number; west: number; north: number; east: number }) => void;
 }
 
-export default function TreeMap({ trees, userLocation, onMapClick, onTreeSelect, onBoundsChange }: TreeMapProps) {
+export default function TreeMap({ trees, userLocation, mapStyle = 'standard', onMapClick, onTreeSelect, onBoundsChange }: TreeMapProps) {
   const mapRef = useRef<L.Map | null>(null);
+  const tileRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +59,7 @@ export default function TreeMap({ trees, userLocation, onMapClick, onTreeSelect,
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const center: [number, number] = userLocation || [35.96, -83.92]; // Default: Knoxville, TN
+    const center: [number, number] = userLocation || [35.96, -83.92];
 
     const map = L.map(containerRef.current, {
       center,
@@ -46,12 +67,12 @@ export default function TreeMap({ trees, userLocation, onMapClick, onTreeSelect,
       zoomControl: false,
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OSM contributors',
-      maxZoom: 19,
+    const layer = TILE_LAYERS.standard;
+    tileRef.current = L.tileLayer(layer.url, {
+      attribution: layer.attribution,
+      maxZoom: layer.maxZoom,
     }).addTo(map);
 
-    // Zoom control bottom-right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     const markers = L.layerGroup().addTo(map);
@@ -79,6 +100,16 @@ export default function TreeMap({ trees, userLocation, onMapClick, onTreeSelect,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Switch tile layer when mapStyle changes
+  useEffect(() => {
+    if (!mapRef.current || !tileRef.current) return;
+
+    const layer = TILE_LAYERS[mapStyle];
+    tileRef.current.setUrl(layer.url);
+    tileRef.current.options.attribution = layer.attribution;
+    tileRef.current.options.maxZoom = layer.maxZoom;
+  }, [mapStyle]);
 
   // Update user location marker
   useEffect(() => {

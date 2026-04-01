@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { TreeManager, ObservationManager } from '@/lib/db/trees';
 import { PointsManager } from '@/lib/db/points';
 import { getCurrentUserId } from '@/lib/auth/session';
+import { moderate } from '@/lib/moderation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,6 +47,11 @@ export async function POST(request: NextRequest) {
 
     if (!body.lat || !body.lon) {
       return NextResponse.json({ success: false, error: 'lat and lon are required' }, { status: 400 });
+    }
+
+    const mod = moderate({ species_variety: body.species_variety, notes: body.notes, observation_notes: body.observation_notes });
+    if (!mod.passed) {
+      return NextResponse.json({ success: false, error: `Inappropriate content in ${mod.field}` }, { status: 400 });
     }
 
     const tree = await TreeManager.create({
