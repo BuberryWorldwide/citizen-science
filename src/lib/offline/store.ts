@@ -31,6 +31,16 @@ interface PendingObservation {
   synced: boolean;
 }
 
+export interface PendingPhoto {
+  local_id: string;
+  observation_local_id?: string; // links to PendingObservation.local_id
+  observation_id?: string;       // server ID if observation was already synced
+  tree_local_id?: string;        // links to PendingTree.local_id (for TagTreeForm photos)
+  filename: string;
+  content_type: string;
+  data: ArrayBuffer;
+}
+
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function getDB() {
@@ -83,10 +93,26 @@ export const OfflineStore = {
     await db.delete('pendingObservations', localId);
   },
 
+  async addPendingPhoto(photo: PendingPhoto) {
+    const db = await getDB();
+    await db.put('pendingPhotos', photo);
+  },
+
+  async getPendingPhotos(): Promise<PendingPhoto[]> {
+    const db = await getDB();
+    return db.getAll('pendingPhotos');
+  },
+
+  async removePendingPhoto(localId: string) {
+    const db = await getDB();
+    await db.delete('pendingPhotos', localId);
+  },
+
   async getPendingCount(): Promise<number> {
     const db = await getDB();
     const trees = await db.count('pendingTrees');
     const obs = await db.count('pendingObservations');
-    return trees + obs;
+    const photos = await db.count('pendingPhotos');
+    return trees + obs + photos;
   },
 };

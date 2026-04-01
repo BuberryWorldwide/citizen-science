@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { OfflineStore } from '@/lib/offline/store';
+import { compressImage } from '@/lib/image';
 
 interface ObservationFormProps {
   treeId: string;
@@ -57,6 +58,27 @@ function ChipSelect({ options, value, onChange, capitalize = true }: {
   );
 }
 
+async function uploadPhoto(rawFile: File, observationId: string): Promise<void> {
+  const file = await compressImage(rawFile);
+  const res = await fetch('/api/photos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      observation_id: observationId,
+      filename: file.name,
+      content_type: file.type,
+    }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+
+  await fetch(json.data.upload_url, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type },
+  });
+}
+
 export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationFormProps) {
   const [health, setHealth] = useState('');
   const [trunkWidth, setTrunkWidth] = useState('');
@@ -72,8 +94,21 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showHarvestFields = ['fruiting', 'ripe_fruit'].includes(phenology);
+
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onload = () => setPhotoPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,9 +140,19 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error);
+
+        // Upload photo if captured
+        if (photoFile && json.data?.id) {
+          try {
+            await uploadPhoto(photoFile, json.data.id);
+          } catch (photoErr) {
+            console.error('Photo upload failed:', photoErr);
+          }
+        }
       } else {
+        const obsLocalId = uuidv4();
         await OfflineStore.addPendingObservation({
-          local_id: uuidv4(),
+          local_id: obsLocalId,
           tree_id: treeId,
           health: health || undefined,
           trunk_width: trunkWidth || undefined,
@@ -116,6 +161,18 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
           created_at: new Date().toISOString(),
           synced: false,
         });
+
+        if (photoFile) {
+          const compressed = await compressImage(photoFile);
+          const buffer = await compressed.arrayBuffer();
+          await OfflineStore.addPendingPhoto({
+            local_id: uuidv4(),
+            observation_local_id: obsLocalId,
+            filename: compressed.name,
+            content_type: compressed.type,
+            data: buffer,
+          });
+        }
       }
       onSuccess();
     } catch (err) {
@@ -222,6 +279,29 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         </>
       )}
 
+      {/* Photo */}
+      <div>
+        <label className="block text-sm text-[var(--muted)] mb-1">Photo</label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handlePhotoCapture}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full py-3 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted)] active:bg-[var(--border)]"
+        >
+          {photoPreview ? 'Change Photo' : 'Take Photo'}
+        </button>
+        {photoPreview && (
+          <img src={photoPreview} alt="Preview" className="mt-2 rounded-lg max-h-32 object-cover" />
+        )}
+      </div>
+
       {/* Notes */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Notes</label>
@@ -239,7 +319,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         disabled={submitting}
         className="w-full py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm disabled:opacity-50 active:bg-[var(--accent-dim)]"
       >
-        {submitting ? 'Saving...' : 'Save Observation'}
+        {submitting ? (photoFile ? 'Saving & uploading...' : 'Saving...') : 'Save Observation'}
       </button>
     </form>
   );
