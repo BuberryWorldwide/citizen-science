@@ -13,6 +13,8 @@ import { BottomNav, NavTab } from '@/components/BottomNav';
 import { ProfilePanel } from '@/components/ProfilePanel';
 import { BuberryLogo } from '@/components/BuberryLogo';
 import { RewardToast } from '@/components/RewardToast';
+import { AuthPrompt } from '@/components/AuthPrompt';
+import Onboarding from '@/components/Onboarding';
 import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
@@ -49,6 +51,21 @@ export default function Home() {
     completedChallenges: string[];
     currentStreak: number;
   } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [authBannerDismissed, setAuthBannerDismissed] = useState(false);
+  const [showAuthGate, setShowAuthGate] = useState(false);
+
+  // Show onboarding on first visit
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('buberry-onboarded')) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    localStorage.setItem('buberry-onboarded', '1');
+  };
 
   const fetchTrees = useCallback(async (
     bounds?: { south: number; west: number; north: number; east: number },
@@ -94,6 +111,7 @@ export default function Home() {
   }, [fetchTrees]);
 
   const handleTagHere = () => {
+    if (!session) { setShowAuthGate(true); return; }
     if (userLocation) {
       setFormLat(userLocation[0]);
       setFormLon(userLocation[1]);
@@ -102,6 +120,7 @@ export default function Home() {
   };
 
   const handleMapClick = (lat: number, lon: number) => {
+    if (!session) { setShowAuthGate(true); return; }
     setFormLat(lat);
     setFormLon(lon);
     setShowForm(true);
@@ -122,6 +141,7 @@ export default function Home() {
   };
 
   const handleAddObservation = (treeId: string) => {
+    if (!session) { setShowAuthGate(true); return; }
     setSelectedTree(null);
     setObservingTree(treeId);
   };
@@ -332,6 +352,21 @@ export default function Home() {
       <BottomSheet open={showProfile} onClose={() => { setShowProfile(false); setActiveTab('map'); }}>
         <ProfilePanel />
       </BottomSheet>
+
+      {/* Auth gate sheet — shown when unauthenticated user tries to contribute */}
+      <BottomSheet open={showAuthGate} onClose={() => setShowAuthGate(false)}>
+        <AuthPrompt variant="gate" />
+      </BottomSheet>
+
+      {/* Auth banner — floating prompt for unauthenticated users */}
+      {!session && !authBannerDismissed && !showOnboarding && !showAuthGate && (
+        <AuthPrompt variant="banner" onDismiss={() => setAuthBannerDismissed(true)} />
+      )}
+
+      {/* Onboarding — first visit walkthrough */}
+      {showOnboarding && (
+        <Onboarding onComplete={handleOnboardingComplete} />
+      )}
 
       {/* Reward Toasts */}
       <RewardToast rewards={pendingRewards} onDismiss={() => setPendingRewards(null)} />
