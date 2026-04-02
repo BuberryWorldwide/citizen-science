@@ -1,9 +1,9 @@
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
 import { BuberryAdapter } from '@/lib/auth/adapter';
-import { pool } from '@/lib/db/connection';
+
+const API = process.env.BACKEND_API_URL || 'https://api.buberryworldwide.com';
 
 export const authOptions: NextAuthOptions = {
   adapter: BuberryAdapter(),
@@ -21,17 +21,13 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const result = await pool.query(
-          'SELECT id, email, name, image, password FROM public."user" WHERE email = $1',
-          [credentials.email]
-        );
-        const user = result.rows[0];
-        if (!user || !user.password) return null;
-
-        const valid = await bcrypt.compare(credentials.password, user.password);
-        if (!valid) return null;
-
-        return { id: user.id, email: user.email, name: user.name, image: user.image };
+        const res = await fetch(`${API}/api/auth/authorize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+        });
+        const json = await res.json();
+        return json.data || null;
       },
     }),
   ],
