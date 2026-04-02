@@ -1,94 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TreeManager, ObservationManager } from '@/lib/db/trees';
-import { PointsManager } from '@/lib/db/points';
+import { backendFetch } from '@/lib/api-client';
 import { getCurrentUserId } from '@/lib/auth/session';
 import { moderate } from '@/lib/moderation';
-import { processGamification } from '@/lib/db/gamification';
 
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-
-    const filters: Parameters<typeof TreeManager.search>[0] = {};
-
-    if (searchParams.get('species')) filters.species = searchParams.get('species')!;
-    if (searchParams.get('accessibility')) filters.accessibility = searchParams.get('accessibility')!;
-
-    const south = searchParams.get('south');
-    const west = searchParams.get('west');
-    const north = searchParams.get('north');
-    const east = searchParams.get('east');
-    if (south && west && north && east) {
-      filters.bbox = {
-        south: parseFloat(south), west: parseFloat(west),
-        north: parseFloat(north), east: parseFloat(east),
-      };
-    }
-
-    const lat = searchParams.get('lat');
-    const lon = searchParams.get('lon');
-    if (lat && lon) {
-      filters.lat = parseFloat(lat);
-      filters.lon = parseFloat(lon);
-      if (searchParams.get('radius')) filters.radius = parseInt(searchParams.get('radius')!);
-    }
-
-    const trees = await TreeManager.search(filters);
-    return NextResponse.json({ success: true, data: trees });
-  } catch (error) {
-    console.error('Error fetching trees:', error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch trees' }, { status: 500 });
-  }
+  const params = request.nextUrl.searchParams.toString();
+  const json = await backendFetch(`/api/trees?${params}`);
+  return NextResponse.json(json);
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const userId = await getCurrentUserId();
+  const body = await request.json();
+  const userId = await getCurrentUserId();
 
-    if (!body.lat || !body.lon) {
-      return NextResponse.json({ success: false, error: 'lat and lon are required' }, { status: 400 });
-    }
-
-    const mod = moderate({ species_variety: body.species_variety, notes: body.notes, observation_notes: body.observation_notes });
-    if (!mod.passed) {
-      return NextResponse.json({ success: false, error: `Inappropriate content in ${mod.field}` }, { status: 400 });
-    }
-
-    const tree = await TreeManager.create({
-      species: body.species,
-      species_variety: body.species_variety,
-      lat: body.lat,
-      lon: body.lon,
-      accessibility: body.accessibility,
-      status: body.status,
-      use_potential: body.use_potential,
-      created_by: userId || undefined,
-      notes: body.notes,
-    });
-
-    // Create first observation if observation data provided
-    if (body.health || body.trunk_width || body.phenology || body.observation_notes) {
-      await ObservationManager.create({
-        tree_id: tree.id,
-        observer_id: userId || undefined,
-        health: body.health,
-        trunk_width: body.trunk_width,
-        phenology: body.phenology,
-        notes: body.observation_notes,
-      });
-    }
-
-    // Award points + gamification
-    let rewards = null;
-    if (userId) {
-      await PointsManager.award(userId, 'tree_tagged', tree.id);
-      rewards = await processGamification(userId, 'tree_tagged', 10);
-    }
-
-    return NextResponse.json({ success: true, data: tree, rewards }, { status: 201 });
-  } catch (error) {
-    console.error('Error creating tree:', error);
-    return NextResponse.json({ success: false, error: 'Failed to create tree' }, { status: 500 });
+  const mod = moderate({ species_variety: body.species_variety, notes: body.notes, observation_notes: body.observation_notes });
+  if (!mod.passed) {
+    return NextResponse.json({ success: false, error: `Inappropriate content in ${mod.field}` }, { status: 400 });
   }
+
+  const json = await backendFetch('/api/trees', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    userId: userId || undefined,
+  });
+  return NextResponse.json(json, { status: json.success ? 201 : 500 });
 }
