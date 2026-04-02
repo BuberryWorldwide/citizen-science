@@ -49,7 +49,7 @@ export const PointsManager = {
     const result = await query(
       `SELECT us.*, u.name, u.email
        FROM user_stats us
-       JOIN public."user" u ON u.id = us.user_id
+       JOIN "user" u ON u.id = us.user_id
        ORDER BY us.total_points DESC
        LIMIT $1`,
       [limit]
