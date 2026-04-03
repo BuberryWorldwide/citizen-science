@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { OfflineStore } from '@/lib/offline/store';
 import { compressImage } from '@/lib/image';
+import { PhotoCaptureGuide, type PlantOrgan } from './PhotoCaptureGuide';
+import { IconCamera } from './Icons';
 
 interface ObservationFormProps {
   treeId: string;
@@ -58,7 +60,7 @@ function ChipSelect({ options, value, onChange, capitalize = true }: {
   );
 }
 
-async function uploadPhoto(rawFile: File, observationId: string): Promise<void> {
+async function uploadPhoto(rawFile: File, observationId: string, organ?: PlantOrgan): Promise<void> {
   const file = await compressImage(rawFile);
   const res = await fetch('/api/photos', {
     method: 'POST',
@@ -67,6 +69,7 @@ async function uploadPhoto(rawFile: File, observationId: string): Promise<void> 
       observation_id: observationId,
       filename: file.name,
       content_type: file.type,
+      organ: organ || 'habit',
     }),
   });
   const json = await res.json();
@@ -96,18 +99,18 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
   const [error, setError] = useState('');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoOrgan, setPhotoOrgan] = useState<PlantOrgan>('leaf');
+  const [showPhotoGuide, setShowPhotoGuide] = useState(false);
 
   const showHarvestFields = ['fruiting', 'ripe_fruit'].includes(phenology);
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFile(file);
-      const reader = new FileReader();
-      reader.onload = () => setPhotoPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
+  const handlePhotoCapture = (file: File, organ: PlantOrgan) => {
+    setPhotoFile(file);
+    setPhotoOrgan(organ);
+    setShowPhotoGuide(false);
+    const reader = new FileReader();
+    reader.onload = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -146,7 +149,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         // Upload photo if captured
         if (photoFile && json.data?.id) {
           try {
-            await uploadPhoto(photoFile, json.data.id);
+            await uploadPhoto(photoFile, json.data.id, photoOrgan);
           } catch (photoErr) {
             console.error('Photo upload failed:', photoErr);
           }
@@ -281,26 +284,24 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         </>
       )}
 
-      {/* Photo */}
+      {/* Photo with guide */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Photo</label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoCapture}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full py-3 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted)] active:bg-[var(--border)]"
-        >
-          {photoPreview ? 'Change Photo' : 'Take Photo'}
-        </button>
-        {photoPreview && (
-          <img src={photoPreview} alt="Preview" className="mt-2 rounded-lg max-h-32 object-cover" />
+        {showPhotoGuide || photoPreview ? (
+          <PhotoCaptureGuide
+            onCapture={handlePhotoCapture}
+            onCancel={() => setShowPhotoGuide(false)}
+            photoPreview={photoPreview}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPhotoGuide(true)}
+            className="w-full py-3 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted)] active:bg-[var(--border)] flex items-center justify-center gap-2"
+          >
+            <IconCamera size={16} />
+            Add Photo
+          </button>
         )}
       </div>
 
