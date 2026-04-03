@@ -318,6 +318,53 @@ export function IconLock(p: IconProps) {
   );
 }
 
+export function IconX(p: IconProps) {
+  return (
+    <I {...p}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </I>
+  );
+}
+
+export function IconAlertTriangle(p: IconProps) {
+  return (
+    <I {...p}>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </I>
+  );
+}
+
+export function IconHelpCircle(p: IconProps) {
+  return (
+    <I {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </I>
+  );
+}
+
+export function IconClipboard(p: IconProps) {
+  return (
+    <I {...p}>
+      <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+    </I>
+  );
+}
+
+export function IconFlag(p: IconProps) {
+  return (
+    <I {...p}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </I>
+  );
+}
+
 // ── Species → icon category mapping ────────────────────────────
 
 export type TreeCategory = 'fruit' | 'nut' | 'citrus' | 'flower' | 'leaf' | 'tree';

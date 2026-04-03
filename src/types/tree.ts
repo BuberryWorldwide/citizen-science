@@ -1,3 +1,5 @@
+export type VerificationStatus = 'unverified' | 'auto_verified' | 'verified' | 'rejected' | 'disputed';
+
 export interface Tree {
   id: string;
   species: string | null;
@@ -12,6 +14,35 @@ export interface Tree {
   created_by: string | null;
   ushahidi_post_id: number | null;
   notes: string | null;
+  // Verification
+  verification_status: VerificationStatus | null;
+  verification_confidence: number | null;
+  plantnet_species: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+  is_first_discovery: boolean;
+  first_discoverer_id: string | null;
+}
+
+export interface WorkOrder {
+  id: string;
+  tree_id: string;
+  order_type: 'verify_species' | 'add_photo' | 'confirm_location';
+  status: 'open' | 'claimed' | 'completed' | 'expired';
+  priority: number;
+  reward_points: number;
+  created_at: string;
+  expires_at: string;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  result_data: unknown;
+  // Joined fields
+  tree_species?: string | null;
+  tree_lat?: number;
+  tree_lon?: number;
+  distance?: number;
 }
 
 export interface Observation {

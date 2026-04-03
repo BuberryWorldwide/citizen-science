@@ -12,21 +12,27 @@ import { getTreeCategory, getCategoryColor, type TreeCategory } from './Icons';
 
 // ── Custom SVG markers ────────────────────────────────────────
 
-function markerSvg(cat: TreeCategory): string {
+type VerificationViz = 'verified' | 'auto_verified' | 'unverified';
+
+function markerSvg(cat: TreeCategory, verification?: VerificationViz): string {
   const color = getCategoryColor(cat);
-  // Simple pin with category-colored dot
+  const opacity = verification === 'unverified' ? '0.55' : '0.9';
+  const autoVerifiedDot = verification === 'auto_verified'
+    ? '<circle cx="14" cy="32" r="3" fill="#60a5fa" stroke="white" stroke-width="1"/>'
+    : '';
   return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
-    <path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 22 14 22s14-11.5 14-22C28 6.3 21.7 0 14 0z" fill="${color}" opacity="0.9"/>
-    <circle cx="14" cy="13" r="6" fill="white" opacity="0.9"/>
-    <circle cx="14" cy="13" r="3.5" fill="${color}"/>
+    <path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 22 14 22s14-11.5 14-22C28 6.3 21.7 0 14 0z" fill="${color}" opacity="${opacity}"/>
+    <circle cx="14" cy="13" r="6" fill="white" opacity="${opacity}"/>
+    <circle cx="14" cy="13" r="3.5" fill="${color}" opacity="${opacity}"/>
+    ${autoVerifiedDot}
   </svg>`;
 }
 
-function getMarkerIcon(species?: string | null) {
+function getMarkerIcon(species?: string | null, verification?: VerificationViz) {
   const cat = getTreeCategory(species);
   return L.divIcon({
     className: 'custom-tree-marker',
-    html: markerSvg(cat),
+    html: markerSvg(cat, verification),
     iconSize: [28, 36],
     iconAnchor: [14, 36],
     popupAnchor: [0, -36],
@@ -41,21 +47,48 @@ const userIcon = L.divIcon({
 });
 
 // ── Tile layers ───────────────────────────────────────────────
+// Add/remove/reorder layers here. The key is the ID, label is for UI.
 
-export type BaseLayer = 'standard' | 'satellite';
+export type BaseLayer = 'clean' | 'dark' | 'game' | 'satellite';
 
-const TILE_LAYERS: Record<BaseLayer, { url: string; attribution: string; maxZoom: number }> = {
-  standard: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OSM contributors',
+export interface TileLayerDef {
+  url: string;
+  attribution: string;
+  maxZoom: number;
+  label: string;
+}
+
+export const TILE_LAYERS: Record<BaseLayer, TileLayerDef> = {
+  clean: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19,
+    label: 'Clean',
+  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+    label: 'Dark',
+  },
+  game: {
+    url: 'https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://stadiamaps.com/">Stadia</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; OSM',
+    maxZoom: 19,
+    label: 'Game',
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri, Maxar, Earthstar Geographics',
     maxZoom: 18,
+    label: 'Satellite',
   },
 };
+
+export const BASE_LAYER_ORDER: BaseLayer[] = ['clean', 'dark', 'game', 'satellite'];
+export const DEFAULT_BASE_LAYER: BaseLayer = 'clean';
+
+const BASEMAP_STORAGE_KEY = 'buberry-basemap';
 
 // ── Overlay types ─────────────────────────────────────────────
 
@@ -85,7 +118,7 @@ export interface TreeMapHandle {
 const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   trees,
   userLocation,
-  baseLayer = 'standard',
+  baseLayer = DEFAULT_BASE_LAYER,
   overlays = { heatmap: false, myTrees: false, speciesColor: true },
   userId,
   onMapClick,
@@ -111,10 +144,10 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
       zoomControl: false,
     });
 
-    const layer = TILE_LAYERS.standard;
-    tileRef.current = L.tileLayer(layer.url, {
-      attribution: layer.attribution,
-      maxZoom: layer.maxZoom,
+    const initialLayer = TILE_LAYERS[baseLayer] || TILE_LAYERS[DEFAULT_BASE_LAYER];
+    tileRef.current = L.tileLayer(initialLayer.url, {
+      attribution: initialLayer.attribution,
+      maxZoom: initialLayer.maxZoom,
     }).addTo(map);
 
     L.control.zoom({ position: 'topright' }).addTo(map);
@@ -167,6 +200,11 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
     tileRef.current.setUrl(layer.url);
     tileRef.current.options.attribution = layer.attribution;
     tileRef.current.options.maxZoom = layer.maxZoom;
+    // Clamp map zoom to the layer's max so tiles don't break
+    mapRef.current.setMaxZoom(layer.maxZoom);
+    if (mapRef.current.getZoom() > layer.maxZoom) {
+      mapRef.current.setZoom(layer.maxZoom);
+    }
   }, [baseLayer]);
 
   // Update heat map layer
@@ -181,10 +219,11 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
     if (overlays.heatmap && trees.length > 0) {
       const points: [number, number, number][] = trees.map(t => [t.lat, t.lon, 0.5]);
       heatRef.current = (L as unknown as { heatLayer: (pts: [number, number, number][], opts: Record<string, unknown>) => L.HeatLayer }).heatLayer(points, {
-        radius: 25,
-        blur: 15,
-        maxZoom: 16,
-        gradient: { 0.2: '#34d399', 0.5: '#fbbf24', 0.8: '#f97316', 1: '#ef4444' },
+        radius: 50,
+        blur: 30,
+        maxZoom: 17,
+        minOpacity: 0.3,
+        gradient: { 0.15: '#34d399', 0.4: '#fbbf24', 0.7: '#f97316', 1: '#ef4444' },
       }).addTo(mapRef.current);
     }
   }, [trees, overlays.heatmap]);
@@ -219,9 +258,13 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
     }
 
     for (const tree of visibleTrees) {
+      const vStatus: VerificationViz =
+        tree.verification_status === 'verified' ? 'verified' :
+        tree.verification_status === 'auto_verified' ? 'auto_verified' :
+        'unverified';
       const icon = overlays.speciesColor
-        ? getMarkerIcon(tree.species)
-        : getMarkerIcon(null); // uniform gray markers
+        ? getMarkerIcon(tree.species, vStatus)
+        : getMarkerIcon(null, vStatus);
 
       const cat = getTreeCategory(tree.species);
       const color = getCategoryColor(cat);

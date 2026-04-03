@@ -1,21 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TreeWithObservations } from '@/types/tree';
+import { TreeWithObservations, VerificationStatus } from '@/types/tree';
 import { Project } from '@/lib/db/projects';
+import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag } from '@/components/Icons';
 
 interface TreeDetailProps {
   treeId: string;
   onClose: () => void;
   onAddObservation?: (treeId: string) => void;
+  onVerify?: (treeId: string) => void;
+  currentUserId?: string | null;
 }
 
-export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProps) {
+export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, currentUserId }: TreeDetailProps) {
   const [tree, setTree] = useState<TreeWithObservations | null>(null);
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [flagging, setFlagging] = useState(false);
 
   useEffect(() => {
     fetch(`/api/trees/${treeId}`)
@@ -46,6 +50,20 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
     } catch { /* ignore */ }
     setShowProjectPicker(false);
   };
+
+  const handleFlag = async () => {
+    setFlagging(true);
+    try {
+      await fetch(`/api/trees/${treeId}/flag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Flagged by user' }),
+      });
+    } catch { /* ignore */ }
+    setFlagging(false);
+  };
+
+  const canVerify = currentUserId && tree && tree.created_by !== currentUserId;
 
   if (loading) {
     return <div className="p-6 text-center text-[var(--muted)]">Loading...</div>;
@@ -92,6 +110,66 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
       {tree.notes && (
         <p className="text-sm text-[var(--muted)] mb-4 italic">{tree.notes}</p>
       )}
+
+      {/* Verification section */}
+      <div className="mb-4 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <VerificationBadge
+            status={tree.verification_status || 'unverified'}
+            confidence={tree.verification_confidence}
+          />
+          {tree.is_first_discovery && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs font-medium">
+              <IconStar size={12} color="currentColor" />
+              First Discovery
+            </span>
+          )}
+        </div>
+
+        {tree.plantnet_species && (
+          <div className="border border-[var(--border)] rounded-lg p-2.5 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[var(--muted)]">AI suggests:</span>
+              <span className="font-medium">{tree.plantnet_species}</span>
+            </div>
+            {tree.verification_confidence != null && (
+              <div className="mt-1.5">
+                <div className="w-full h-1.5 bg-[var(--bg)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.round(tree.verification_confidence * 100)}%`,
+                      background: tree.verification_confidence > 0.8 ? 'var(--accent)' : tree.verification_confidence > 0.5 ? 'var(--warn)' : '#ef4444',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {canVerify && (
+          <div className="flex gap-2">
+            {onVerify && (
+              <button
+                onClick={() => onVerify(treeId)}
+                className="flex-1 py-2 bg-[var(--accent)] text-black rounded-lg text-sm font-medium min-h-[44px] flex items-center justify-center gap-1.5 active:opacity-80"
+              >
+                <IconCheck size={16} color="#000" />
+                Verify
+              </button>
+            )}
+            <button
+              onClick={handleFlag}
+              disabled={flagging}
+              className="py-2 px-4 border border-red-500/50 text-red-400 rounded-lg text-sm min-h-[44px] flex items-center justify-center gap-1.5 active:bg-red-500/10 disabled:opacity-50"
+            >
+              <IconFlag size={16} />
+              Flag
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Projects this tree belongs to */}
       {projects.length > 0 && (
@@ -204,5 +282,29 @@ export function TreeDetail({ treeId, onClose, onAddObservation }: TreeDetailProp
         </div>
       )}
     </div>
+  );
+}
+
+// ── Verification Badge ────────────────────────────────────────
+
+const BADGE_CONFIG: Record<VerificationStatus, { bg: string; text: string; label: string; Icon: typeof IconCheck }> = {
+  verified:      { bg: 'bg-green-500/15', text: 'text-green-400', label: 'Verified',    Icon: IconCheck },
+  auto_verified: { bg: 'bg-blue-500/15',  text: 'text-blue-400',  label: 'AI Verified', Icon: IconCheck },
+  unverified:    { bg: 'bg-gray-500/15',  text: 'text-gray-400',  label: 'Unverified',  Icon: IconHelpCircle },
+  rejected:      { bg: 'bg-red-500/15',   text: 'text-red-400',   label: 'Rejected',    Icon: IconX },
+  disputed:      { bg: 'bg-yellow-500/15', text: 'text-yellow-400', label: 'Disputed',  Icon: IconAlertTriangle },
+};
+
+function VerificationBadge({ status, confidence }: { status: VerificationStatus; confidence: number | null }) {
+  const cfg = BADGE_CONFIG[status] || BADGE_CONFIG.unverified;
+  const { Icon } = cfg;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 ${cfg.bg} ${cfg.text} rounded-full text-xs font-medium`}>
+      <Icon size={12} color="currentColor" />
+      {cfg.label}
+      {status === 'auto_verified' && confidence != null && (
+        <span className="opacity-70 ml-0.5">{Math.round(confidence * 100)}%</span>
+      )}
+    </span>
   );
 }

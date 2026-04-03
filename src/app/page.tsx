@@ -7,6 +7,8 @@ import { useSession } from 'next-auth/react';
 import { TagTreeForm } from '@/components/TagTreeForm';
 import { TreeDetail } from '@/components/TreeDetail';
 import { ObservationForm } from '@/components/ObservationForm';
+import { VerificationForm } from '@/components/VerificationForm';
+import { WorkOrderPanel } from '@/components/WorkOrderPanel';
 import { SearchPanel } from '@/components/SearchPanel';
 import { BottomSheet } from '@/components/BottomSheet';
 import { BottomNav, NavTab } from '@/components/BottomNav';
@@ -15,11 +17,12 @@ import { BuberryLogo } from '@/components/BuberryLogo';
 import { RewardToast } from '@/components/RewardToast';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
-import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus } from '@/components/Icons';
+import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconClipboard } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { Tree } from '@/types/tree';
 import type { BaseLayer, MapOverlays, TreeMapHandle } from '@/components/TreeMap';
+import { TILE_LAYERS, BASE_LAYER_ORDER, DEFAULT_BASE_LAYER } from '@/components/TreeMap';
 
 const TreeMap = dynamic(() => import('@/components/TreeMap'), {
   ssr: false,
@@ -43,7 +46,18 @@ export default function Home() {
   const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
   const { data: session } = useSession();
   const { theme, toggle: toggleTheme } = useTheme();
-  const [baseLayer, setBaseLayer] = useState<BaseLayer>('standard');
+  const [baseLayer, setBaseLayerState] = useState<BaseLayer>(DEFAULT_BASE_LAYER);
+
+  // Restore basemap from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('buberry-basemap');
+    if (stored && stored in TILE_LAYERS) setBaseLayerState(stored as BaseLayer);
+  }, []);
+
+  const setBaseLayer = (layer: BaseLayer) => {
+    setBaseLayerState(layer);
+    localStorage.setItem('buberry-basemap', layer);
+  };
   const [overlays, setOverlays] = useState<MapOverlays>({ heatmap: false, myTrees: false, speciesColor: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [pendingRewards, setPendingRewards] = useState<{
@@ -55,6 +69,9 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [authBannerDismissed, setAuthBannerDismissed] = useState(false);
   const [showAuthGate, setShowAuthGate] = useState(false);
+  const [verifyingTree, setVerifyingTree] = useState<{ id: string; species: string | null } | null>(null);
+  const [showWorkOrders, setShowWorkOrders] = useState(false);
+  const [taskCount, setTaskCount] = useState(0);
 
   // Show onboarding on first visit
   useEffect(() => {
@@ -66,6 +83,36 @@ export default function Home() {
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
     localStorage.setItem('buberry-onboarded', '1');
+  };
+
+  // Fetch nearby task count for badge
+  useEffect(() => {
+    if (!session || !userLocation) return;
+    const params = new URLSearchParams();
+    params.set('lat', String(userLocation[0]));
+    params.set('lon', String(userLocation[1]));
+    fetch(`/api/work-orders?${params}`)
+      .then(r => r.json())
+      .then(json => { if (json.success && Array.isArray(json.data)) setTaskCount(json.data.length); })
+      .catch(() => {});
+  }, [session, userLocation]);
+
+  const handleVerify = (treeId: string) => {
+    if (!session) { setShowAuthGate(true); return; }
+    const tree = trees.find(t => t.id === treeId);
+    setSelectedTree(null);
+    setVerifyingTree({ id: treeId, species: tree?.species || null });
+  };
+
+  const handleVerificationSuccess = () => {
+    setVerifyingTree(null);
+    fetchTrees();
+  };
+
+  const handleWorkOrderSelectTree = (treeId: string, lat: number, lon: number) => {
+    setShowWorkOrders(false);
+    mapRef.current?.flyTo(lat, lon, 17);
+    setTimeout(() => setSelectedTree(treeId), 500);
   };
 
   const fetchTrees = useCallback(async (
@@ -229,10 +276,10 @@ export default function Home() {
               {/* Base layers */}
               <div className="p-2 border-b border-[var(--border)]">
                 <p className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-semibold px-2 mb-1">Base Map</p>
-                {(['standard', 'satellite'] as const).map(layer => (
+                {BASE_LAYER_ORDER.map(layer => (
                   <button
                     key={layer}
-                    onClick={() => setBaseLayer(layer)}
+                    onClick={() => { setBaseLayer(layer); setShowLayerPanel(false); }}
                     className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs ${
                       baseLayer === layer ? 'text-[var(--accent)] bg-[var(--accent-glow)]' : 'text-[var(--fg)]'
                     }`}
@@ -240,7 +287,7 @@ export default function Home() {
                     <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: baseLayer === layer ? 'var(--accent)' : 'var(--border)' }}>
                       {baseLayer === layer && <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />}
                     </span>
-                    {layer === 'standard' ? 'Standard' : 'Satellite'}
+                    {TILE_LAYERS[layer].label}
                   </button>
                 ))}
               </div>
@@ -337,6 +384,8 @@ export default function Home() {
             treeId={selectedTree}
             onClose={() => setSelectedTree(null)}
             onAddObservation={handleAddObservation}
+            onVerify={handleVerify}
+            currentUserId={session?.user?.id || null}
           />
         )}
       </BottomSheet>
@@ -367,10 +416,42 @@ export default function Home() {
         <ProfilePanel />
       </BottomSheet>
 
+      {/* Verification Form Sheet */}
+      <BottomSheet open={!!verifyingTree} onClose={() => setVerifyingTree(null)}>
+        {verifyingTree && (
+          <VerificationForm
+            treeId={verifyingTree.id}
+            species={verifyingTree.species}
+            onSuccess={handleVerificationSuccess}
+            onCancel={() => setVerifyingTree(null)}
+          />
+        )}
+      </BottomSheet>
+
+      {/* Work Orders Sheet */}
+      <BottomSheet open={showWorkOrders} onClose={() => setShowWorkOrders(false)}>
+        <WorkOrderPanel
+          userLocation={userLocation}
+          onSelectTree={handleWorkOrderSelectTree}
+        />
+      </BottomSheet>
+
       {/* Auth gate sheet — shown when unauthenticated user tries to contribute */}
       <BottomSheet open={showAuthGate} onClose={() => setShowAuthGate(false)}>
         <AuthPrompt variant="gate" />
       </BottomSheet>
+
+      {/* Floating task count chip */}
+      {session && taskCount > 0 && !showWorkOrders && !showForm && !selectedTree && !verifyingTree && (
+        <button
+          onClick={() => setShowWorkOrders(true)}
+          className="fixed z-[700] right-3 flex items-center gap-1.5 px-3 py-2 backdrop-blur rounded-full border border-[var(--border)] shadow-sm text-xs font-medium animate-bounce-in"
+          style={{ background: 'var(--pill-bg)', top: '3.5rem' }}
+        >
+          <IconClipboard size={14} color="var(--accent)" />
+          <span>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+        </button>
+      )}
 
       {/* Auth banner — floating prompt for unauthenticated users */}
       {!session && !authBannerDismissed && !showOnboarding && !showAuthGate && (
