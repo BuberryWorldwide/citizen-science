@@ -80,13 +80,16 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
   const [photoOrgan, setPhotoOrgan] = useState<PlantOrgan>('leaf');
   const [showPhotoGuide, setShowPhotoGuide] = useState(false);
 
-  const handlePhotoCapture = (file: File, organ: PlantOrgan) => {
-    setPhotoFile(file);
+  const handlePhotoCapture = async (file: File, organ: PlantOrgan) => {
+    // Clone the file to ensure it's fully readable after any prior consumption
+    const buffer = await file.arrayBuffer();
+    const freshFile = new File([buffer], file.name || 'photo.jpg', { type: file.type || 'image/jpeg' });
+    setPhotoFile(freshFile);
     setPhotoOrgan(organ);
     setShowPhotoGuide(false);
     const reader = new FileReader();
     reader.onload = () => setPhotoPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(freshFile);
   };
 
   const toggleUsePotential = (value: string) => {

@@ -77,10 +77,11 @@ export function PhotoCaptureGuide({
     setScanResult(null);
 
     try {
-      // Compress before sending to PlantNet
-      const compressed = await compressImage(pendingFile);
+      // Clone the file data so the original remains usable for upload
+      const buffer = await pendingFile.arrayBuffer();
+      const identifyBlob = new Blob([buffer], { type: pendingFile.type || 'image/jpeg' });
       const formData = new FormData();
-      formData.append('image', compressed);
+      formData.append('image', identifyBlob, pendingFile.name);
       formData.append('organ', selectedOrgan);
 
       const res = await fetch('/api/photos/identify', { method: 'POST', body: formData });
