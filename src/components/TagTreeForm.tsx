@@ -342,8 +342,11 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
         {showPhotoGuide || photoPreview ? (
           <PhotoCaptureGuide
             onCapture={handlePhotoCapture}
+            onClear={() => { setPhotoFile(null); setPhotoPreview(null); }}
             onCancel={() => setShowPhotoGuide(false)}
             photoPreview={photoPreview}
+            currentSpecies={species}
+            onSpeciesSuggestion={(s) => { if (!species || species === 'Other') setSpecies(s); }}
           />
         ) : (
           <button

@@ -290,6 +290,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         {showPhotoGuide || photoPreview ? (
           <PhotoCaptureGuide
             onCapture={handlePhotoCapture}
+            onClear={() => { setPhotoFile(null); setPhotoPreview(null); }}
             onCancel={() => setShowPhotoGuide(false)}
             photoPreview={photoPreview}
           />
