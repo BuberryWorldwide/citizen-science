@@ -15,6 +15,7 @@ import { BottomNav, NavTab } from '@/components/BottomNav';
 import { ProfilePanel } from '@/components/ProfilePanel';
 import { BuberryLogo } from '@/components/BuberryLogo';
 import { RewardToast } from '@/components/RewardToast';
+import { BadgeModal } from '@/components/BadgeModal';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
 import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconClipboard } from '@/components/Icons';
@@ -73,6 +74,7 @@ export default function Home() {
   const [verifyingTree, setVerifyingTree] = useState<{ id: string; species: string | null } | null>(null);
   const [showWorkOrders, setShowWorkOrders] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
+  const [badgeToShow, setBadgeToShow] = useState<{ title: string; description: string; icon: string } | null>(null);
 
   // Show onboarding on first visit
   useEffect(() => {
@@ -182,18 +184,29 @@ export default function Home() {
     setShowForm(true);
   };
 
+  const processRewards = (rewards: unknown) => {
+    if (!rewards) return;
+    const r = rewards as typeof pendingRewards;
+    setPendingRewards(r);
+    // Show badge modal for the first new achievement
+    if (r?.newAchievements?.length) {
+      const first = r.newAchievements[0];
+      setBadgeToShow({ title: first.title, description: first.description, icon: first.icon });
+    }
+  };
+
   const handleTreeCreated = (rewards?: unknown) => {
     setShowForm(false);
     refreshPendingCount();
     fetchTrees();
-    if (rewards) setPendingRewards(rewards as typeof pendingRewards);
+    processRewards(rewards);
   };
 
   const handleObservationCreated = (rewards?: unknown) => {
     setObservingTree(null);
     setSelectedTree(null);
     refreshPendingCount();
-    if (rewards) setPendingRewards(rewards as typeof pendingRewards);
+    processRewards(rewards);
   };
 
   const handleAddObservation = (treeId: string) => {
@@ -466,6 +479,13 @@ export default function Home() {
 
       {/* Reward Toasts */}
       <RewardToast rewards={pendingRewards} onDismiss={() => setPendingRewards(null)} />
+
+      {/* Badge Modal */}
+      <BadgeModal
+        badge={badgeToShow}
+        onClose={() => setBadgeToShow(null)}
+        onViewAll={() => { setBadgeToShow(null); setShowProfile(true); setActiveTab('profile'); }}
+      />
     </div>
   );
 }

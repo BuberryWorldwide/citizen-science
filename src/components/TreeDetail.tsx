@@ -234,50 +234,9 @@ export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, curren
       {(!tree.observations || tree.observations.length === 0) ? (
         <p className="text-sm text-[var(--muted)]">No observations yet.</p>
       ) : (
-        <div className="space-y-3">
-          {tree.observations.map(obs => (
-            <div key={obs.id} className="border border-[var(--border)] rounded-lg p-3 text-sm">
-              <div className="text-xs text-[var(--muted)] mb-1">
-                {new Date(obs.observed_at).toLocaleDateString('en-US', {
-                  year: 'numeric', month: 'short', day: 'numeric'
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {obs.health && (
-                  <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">{obs.health}</span>
-                )}
-                {obs.trunk_width && (
-                  <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">{obs.trunk_width}</span>
-                )}
-                {obs.phenology && (
-                  <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">
-                    {obs.phenology.replace('_', ' ')}
-                  </span>
-                )}
-                {obs.yield && (
-                  <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">Yield: {obs.yield}</span>
-                )}
-              </div>
-              {obs.notes && <p className="text-[var(--muted)] mt-1">{obs.notes}</p>}
-              {obs.photos && obs.photos.length > 0 && (
-                <div className="flex gap-2 mt-2 overflow-x-auto">
-                  {obs.photos.map(photo => (
-                    <a
-                      key={photo.id}
-                      href={photo.url || ''}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <img
-                        src={photo.url || ''}
-                        alt={photo.caption || 'Observation photo'}
-                        className="w-48 h-48 object-cover rounded-lg flex-shrink-0"
-                      />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="space-y-2">
+          {tree.observations.map((obs, idx) => (
+            <ObservationCard key={obs.id} obs={obs} defaultExpanded={idx === 0} />
           ))}
         </div>
       )}
@@ -306,5 +265,88 @@ function VerificationBadge({ status, confidence }: { status: VerificationStatus;
         <span className="opacity-70 ml-0.5">{Math.round(confidence * 100)}%</span>
       )}
     </span>
+  );
+}
+
+// ── Observation Card (expandable) ────────────────────────────
+
+import { Observation } from '@/types/tree';
+
+function ObservationCard({ obs, defaultExpanded }: { obs: Observation; defaultExpanded: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const photoCount = obs.photos?.length || 0;
+  const firstPhoto = obs.photos?.[0];
+
+  return (
+    <div className="border border-[var(--border)] rounded-lg overflow-hidden text-sm">
+      {/* Header — always visible, clickable */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 p-3 text-left"
+      >
+        {/* Thumbnail */}
+        {firstPhoto ? (
+          <img
+            src={firstPhoto.url || ''}
+            alt=""
+            className="w-12 h-12 rounded-lg object-cover shrink-0"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-lg bg-[var(--bg)] flex items-center justify-center shrink-0">
+            <span className="text-[10px] text-[var(--muted)]">No img</span>
+          </div>
+        )}
+
+        {/* Summary */}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-[var(--muted)]">
+            {new Date(obs.observed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+          </div>
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {obs.health && <span className="px-1.5 py-0.5 bg-[var(--bg)] rounded text-[10px] capitalize">{obs.health}</span>}
+            {obs.phenology && <span className="px-1.5 py-0.5 bg-[var(--bg)] rounded text-[10px] capitalize">{obs.phenology.replace('_', ' ')}</span>}
+            {photoCount > 0 && <span className="px-1.5 py-0.5 bg-[var(--bg)] rounded text-[10px]">{photoCount} photo{photoCount !== 1 ? 's' : ''}</span>}
+          </div>
+        </div>
+
+        {/* Chevron */}
+        <span className={`text-[var(--muted)] transition-transform ${expanded ? 'rotate-180' : ''}`}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="px-3 pb-3 border-t border-[var(--border)] pt-2 space-y-2">
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5">
+            {obs.health && <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">{obs.health}</span>}
+            {obs.trunk_width && <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">{obs.trunk_width}</span>}
+            {obs.phenology && <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">{obs.phenology.replace('_', ' ')}</span>}
+            {obs.yield && <span className="px-2 py-0.5 bg-[var(--bg)] rounded text-xs capitalize">Yield: {obs.yield}</span>}
+          </div>
+
+          {/* Notes */}
+          {obs.notes && <p className="text-[var(--muted)] text-xs">{obs.notes}</p>}
+
+          {/* Photos */}
+          {obs.photos && obs.photos.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {obs.photos.map(photo => (
+                <a key={photo.id} href={photo.url || ''} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={photo.url || ''}
+                    alt={photo.caption || 'Observation photo'}
+                    className="w-40 h-40 object-cover rounded-lg shrink-0"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
