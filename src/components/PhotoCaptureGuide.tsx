@@ -1,54 +1,34 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import { IconCamera, IconCheck, IconX, IconSearch } from './Icons';
+import { useState, useRef } from 'react';
+import { IconCamera, IconCheck, IconSearch } from './Icons';
 
 export type PlantOrgan = 'leaf' | 'fruit' | 'bark' | 'flower' | 'habit';
 
 interface PhotoCaptureGuideProps {
-  /** Called when user confirms a photo. */
   onCapture: (file: File, organ: PlantOrgan) => void;
-  /** Called when user removes/clears the photo. */
   onClear: () => void;
-  /** Called when user cancels the whole photo flow. */
   onCancel: () => void;
-  /** Current preview data URL (if a photo is already taken). */
   photoPreview: string | null;
-  /** Current species selection — if 'Other' or empty, triggers auto-ID. */
   currentSpecies?: string;
-  /** Called when PlantNet suggests a species the user accepts. */
   onSpeciesSuggestion?: (species: string, confidence: number) => void;
 }
 
 const ORGANS: { id: PlantOrgan; label: string; icon: string; tips: string[] }[] = [
-  {
-    id: 'leaf', label: 'Leaf', icon: '\u{1F343}',
-    tips: ['Single leaf flat on plain background', 'Full leaf — stem to tip', 'Top side, veins visible'],
-  },
-  {
-    id: 'fruit', label: 'Fruit', icon: '\u{1F34E}',
-    tips: ['On the branch if possible', 'Show size reference', 'Clear color and texture'],
-  },
-  {
-    id: 'bark', label: 'Bark', icon: '\u{1FAB5}',
-    tips: ['Chest height on trunk', 'Fill frame with texture', 'Avoid mossy areas'],
-  },
-  {
-    id: 'flower', label: 'Flower', icon: '\u{1F33A}',
-    tips: ['Close up, fill the frame', 'Show petal arrangement', 'Best for identification'],
-  },
-  {
-    id: 'habit', label: 'Full Tree', icon: '\u{1F333}',
-    tips: ['Stand back for full shape', 'Include canopy and trunk', 'Less accurate alone'],
-  },
+  { id: 'leaf', label: 'Leaf', icon: '\u{1F343}', tips: ['Single leaf flat on plain background', 'Full leaf — stem to tip', 'Top side, veins visible'] },
+  { id: 'fruit', label: 'Fruit', icon: '\u{1F34E}', tips: ['On the branch if possible', 'Show size reference', 'Clear color and texture'] },
+  { id: 'bark', label: 'Bark', icon: '\u{1FAB5}', tips: ['Chest height on trunk', 'Fill frame with texture', 'Avoid mossy areas'] },
+  { id: 'flower', label: 'Flower', icon: '\u{1F33A}', tips: ['Close up, fill the frame', 'Show petal arrangement', 'Best for identification'] },
+  { id: 'habit', label: 'Full Tree', icon: '\u{1F333}', tips: ['Stand back for full shape', 'Include canopy and trunk', 'Less accurate alone'] },
 ];
 
-interface IdResult {
+type Step = 'select' | 'tips' | 'review' | 'scanning' | 'result';
+
+interface ScanResult {
   species: string;
   commonName: string;
   confidence: number;
-  loading: boolean;
-  error: string | null;
+  error?: string;
 }
 
 export function PhotoCaptureGuide({
@@ -56,15 +36,14 @@ export function PhotoCaptureGuide({
   currentSpecies, onSpeciesSuggestion,
 }: PhotoCaptureGuideProps) {
   const [selectedOrgan, setSelectedOrgan] = useState<PlantOrgan>('leaf');
-  const [step, setStep] = useState<'select' | 'tips' | 'review'>('select');
+  const [step, setStep] = useState<Step>('select');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
-  const [idResult, setIdResult] = useState<IdResult | null>(null);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const organ = ORGANS.find(o => o.id === selectedOrgan)!;
-
-  const needsIdentification = !currentSpecies || currentSpecies === 'Other' || currentSpecies === '';
+  const needsId = !currentSpecies || currentSpecies === 'Other' || currentSpecies === '';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,75 +56,76 @@ export function PhotoCaptureGuide({
       };
       reader.readAsDataURL(file);
     }
-    // Reset input so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleUsePhoto = useCallback(async () => {
+  const handleUsePhoto = () => {
     if (!pendingFile) return;
+    if (needsId) {
+      runIdentification();
+    } else {
+      onCapture(pendingFile, selectedOrgan);
+    }
+  };
 
-    // If species unknown, try PlantNet identification
-    if (needsIdentification) {
-      setIdResult({ species: '', commonName: '', confidence: 0, loading: true, error: null });
-      try {
-        const formData = new FormData();
-        formData.append('image', pendingFile);
-        formData.append('organ', selectedOrgan);
+  const runIdentification = async () => {
+    if (!pendingFile) return;
+    setStep('scanning');
+    setScanResult(null);
 
-        const res = await fetch('/api/photos/identify', { method: 'POST', body: formData });
-        const json = await res.json();
+    try {
+      const formData = new FormData();
+      formData.append('image', pendingFile);
+      formData.append('organ', selectedOrgan);
 
-        if (json.success && json.data?.species) {
-          setIdResult({
-            species: json.data.species,
-            commonName: json.data.commonName || json.data.species,
-            confidence: json.data.confidence || 0,
-            loading: false,
-            error: null,
-          });
-          return; // Don't call onCapture yet — wait for user to accept/dismiss
-        } else {
-          setIdResult({ species: '', commonName: '', confidence: 0, loading: false, error: 'Could not identify' });
-        }
-      } catch {
-        setIdResult({ species: '', commonName: '', confidence: 0, loading: false, error: 'Identification failed' });
+      const res = await fetch('/api/photos/identify', { method: 'POST', body: formData });
+      const json = await res.json();
+
+      if (json.success && json.data?.species) {
+        setScanResult({
+          species: json.data.species,
+          commonName: json.data.commonName || json.data.species,
+          confidence: json.data.confidence || 0,
+        });
+        setStep('result');
+      } else {
+        setScanResult({ species: '', commonName: '', confidence: 0, error: 'Could not identify this plant. Try a clearer photo or different angle.' });
+        setStep('result');
       }
+    } catch {
+      setScanResult({ species: '', commonName: '', confidence: 0, error: 'Identification failed. Check your connection.' });
+      setStep('result');
     }
+  };
 
-    // If species is already known, or ID failed, just accept the photo
-    onCapture(pendingFile, selectedOrgan);
-  }, [pendingFile, selectedOrgan, needsIdentification, onCapture]);
-
-  const handleAcceptSuggestion = () => {
-    if (idResult && idResult.species && pendingFile) {
-      onSpeciesSuggestion?.(idResult.commonName || idResult.species, idResult.confidence);
+  const acceptSuggestion = () => {
+    if (scanResult?.commonName && pendingFile) {
+      onSpeciesSuggestion?.(scanResult.commonName, scanResult.confidence);
       onCapture(pendingFile, selectedOrgan);
     }
   };
 
-  const handleDismissSuggestion = () => {
-    if (pendingFile) {
-      onCapture(pendingFile, selectedOrgan);
-    }
+  const skipSuggestion = () => {
+    if (pendingFile) onCapture(pendingFile, selectedOrgan);
   };
 
-  const handleRetake = () => {
+  const retake = () => {
     setPendingFile(null);
     setPendingPreview(null);
-    setIdResult(null);
+    setScanResult(null);
     setStep('tips');
   };
 
-  const handleRemove = () => {
+  const remove = () => {
     setPendingFile(null);
     setPendingPreview(null);
-    setIdResult(null);
+    setScanResult(null);
     setStep('select');
     onClear();
   };
 
-  // ── Already confirmed photo ──────────────────────────────────
-  if (photoPreview && !pendingPreview) {
+  // ── Confirmed photo (already accepted) ─────────────────────
+  if (photoPreview && step !== 'review' && step !== 'scanning' && step !== 'result') {
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -154,16 +134,10 @@ export function PhotoCaptureGuide({
             <span className="font-medium">{organ.label}</span>
             <IconCheck size={14} color="var(--accent)" />
           </div>
-          <button type="button" onClick={handleRemove} className="text-[11px] text-red-400">
-            Remove
-          </button>
+          <button type="button" onClick={remove} className="text-[11px] text-red-400">Remove</button>
         </div>
         <img src={photoPreview} alt="Preview" className="rounded-lg max-h-36 object-cover w-full" />
-        <button
-          type="button"
-          onClick={() => { onClear(); setStep('select'); }}
-          className="text-xs text-[var(--accent)]"
-        >
+        <button type="button" onClick={() => { onClear(); setStep('select'); }} className="text-xs text-[var(--accent)]">
           Take a different photo
         </button>
       </div>
@@ -172,100 +146,124 @@ export function PhotoCaptureGuide({
 
   return (
     <div className="space-y-3">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFileChange}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
 
-      {/* ── Step: Review photo ────────────────────────────────── */}
-      {step === 'review' && pendingPreview && (
-        <>
-          <img src={pendingPreview} alt="Preview" className="rounded-lg max-h-40 object-cover w-full" />
-
-          {/* PlantNet identification result */}
-          {idResult?.loading && (
-            <div className="flex items-center gap-2 p-3 bg-[var(--surface-raised,var(--surface))] rounded-lg">
-              <IconSearch size={16} color="var(--accent)" className="animate-pulse" />
-              <span className="text-xs text-[var(--muted)]">Identifying species...</span>
+      {/* ── Scanning ──────────────────────────────────────────── */}
+      {step === 'scanning' && (
+        <div className="space-y-3">
+          {pendingPreview && (
+            <img src={pendingPreview} alt="Scanning" className="rounded-lg max-h-36 object-cover w-full opacity-70" />
+          )}
+          <div className="flex items-center gap-3 p-4 bg-[var(--surface-raised,var(--surface))] rounded-xl">
+            <div className="relative">
+              <IconSearch size={20} color="var(--accent)" />
+              <div className="absolute inset-0 animate-ping">
+                <IconSearch size={20} color="var(--accent)" className="opacity-30" />
+              </div>
             </div>
+            <div>
+              <p className="text-sm font-medium">Identifying species...</p>
+              <p className="text-[11px] text-[var(--muted)]">Analyzing your {organ.label.toLowerCase()} photo</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Result ────────────────────────────────────────────── */}
+      {step === 'result' && (
+        <div className="space-y-3">
+          {pendingPreview && (
+            <img src={pendingPreview} alt="Preview" className="rounded-lg max-h-36 object-cover w-full" />
           )}
 
-          {idResult && !idResult.loading && idResult.species && (
-            <div className="p-3 bg-[var(--accent-glow)] border border-[var(--accent)]/20 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-[var(--accent)]">
-                    {idResult.commonName}
-                  </p>
-                  <p className="text-[10px] text-[var(--muted)]">
-                    {idResult.species} — {Math.round(idResult.confidence * 100)}% confidence
-                  </p>
-                </div>
+          {scanResult?.species ? (
+            <div className="p-4 bg-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-xl space-y-3">
+              <div>
+                <p className="text-xs text-[var(--muted)] uppercase tracking-wider font-semibold">Species Identified</p>
+                <p className="text-lg font-bold text-[var(--accent)] mt-1">{scanResult.commonName}</p>
+                <p className="text-xs text-[var(--muted)]">
+                  {scanResult.species} — {Math.round(scanResult.confidence * 100)}% confidence
+                </p>
+              </div>
+              {/* Confidence bar */}
+              <div className="h-1.5 bg-[var(--bg)] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.round(scanResult.confidence * 100)}%`,
+                    background: scanResult.confidence > 0.7 ? 'var(--accent)' : scanResult.confidence > 0.4 ? '#fbbf24' : '#f97316',
+                  }}
+                />
               </div>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={handleAcceptSuggestion}
-                  className="flex-1 py-2 bg-[var(--accent)] text-black rounded-lg text-xs font-medium"
+                  onClick={acceptSuggestion}
+                  className="flex-1 py-2.5 bg-[var(--accent)] text-black rounded-lg text-sm font-semibold"
                 >
-                  Use: {idResult.commonName}
+                  Use: {scanResult.commonName}
                 </button>
                 <button
                   type="button"
-                  onClick={handleDismissSuggestion}
-                  className="py-2 px-3 border border-[var(--border)] rounded-lg text-xs text-[var(--muted)]"
+                  onClick={skipSuggestion}
+                  className="py-2.5 px-4 border border-[var(--border)] rounded-lg text-sm text-[var(--muted)]"
                 >
                   Skip
                 </button>
               </div>
             </div>
-          )}
-
-          {idResult && !idResult.loading && idResult.error && (
-            <p className="text-xs text-[var(--muted)]">{idResult.error}</p>
-          )}
-
-          {/* Use / Retake buttons (show when not loading ID) */}
-          {!idResult?.loading && !idResult?.species && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleRetake}
-                className="flex-1 py-3 border border-[var(--border)] rounded-lg text-sm text-[var(--muted)] flex items-center justify-center gap-1.5"
-              >
-                <IconCamera size={14} />
-                Retake
-              </button>
-              <button
-                type="button"
-                onClick={handleUsePhoto}
-                className="flex-1 py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm flex items-center justify-center gap-1.5"
-              >
-                <IconCheck size={14} color="#000" />
-                {needsIdentification ? 'Identify & Use' : 'Use Photo'}
-              </button>
+          ) : (
+            <div className="p-4 bg-[var(--surface-raised,var(--surface))] rounded-xl space-y-2">
+              <p className="text-sm text-[var(--muted)]">{scanResult?.error || 'Could not identify'}</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={retake} className="flex-1 py-2.5 border border-[var(--border)] rounded-lg text-sm text-[var(--muted)]">
+                  Retake
+                </button>
+                <button type="button" onClick={skipSuggestion} className="flex-1 py-2.5 bg-[var(--accent)] text-black rounded-lg text-sm font-medium">
+                  Use Photo Anyway
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Retake during ID result */}
-          {idResult && !idResult.loading && (
-            <button type="button" onClick={handleRetake} className="text-xs text-[var(--muted)] w-full text-center">
-              Take a different photo
-            </button>
-          )}
-        </>
+          <button type="button" onClick={retake} className="text-xs text-[var(--muted)] w-full text-center">
+            Take a different photo
+          </button>
+        </div>
       )}
 
-      {/* ── Step: Select organ ────────────────────────────────── */}
+      {/* ── Review (before scanning) ──────────────────────────── */}
+      {step === 'review' && pendingPreview && (
+        <div className="space-y-3">
+          <img src={pendingPreview} alt="Preview" className="rounded-lg max-h-40 object-cover w-full" />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={retake}
+              className="flex-1 py-3 border border-[var(--border)] rounded-lg text-sm text-[var(--muted)] flex items-center justify-center gap-1.5"
+            >
+              <IconCamera size={14} />
+              Retake
+            </button>
+            <button
+              type="button"
+              onClick={handleUsePhoto}
+              className="flex-1 py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm flex items-center justify-center gap-1.5"
+            >
+              {needsId ? (
+                <><IconSearch size={14} color="#000" /> Identify</>
+              ) : (
+                <><IconCheck size={14} color="#000" /> Use Photo</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Select organ ──────────────────────────────────────── */}
       {step === 'select' && (
         <>
-          <label className="block text-sm text-[var(--muted)]">
-            What are you photographing?
-          </label>
+          <label className="block text-sm text-[var(--muted)]">What are you photographing?</label>
           <div className="grid grid-cols-5 gap-1.5">
             {ORGANS.map(o => (
               <button
@@ -273,9 +271,7 @@ export function PhotoCaptureGuide({
                 type="button"
                 onClick={() => setSelectedOrgan(o.id)}
                 className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-colors ${
-                  selectedOrgan === o.id
-                    ? 'border-[var(--accent)] bg-[var(--accent-glow)]'
-                    : 'border-[var(--border)]'
+                  selectedOrgan === o.id ? 'border-[var(--accent)] bg-[var(--accent-glow)]' : 'border-[var(--border)]'
                 }`}
               >
                 <span className="text-lg">{o.icon}</span>
@@ -283,20 +279,14 @@ export function PhotoCaptureGuide({
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => setStep('tips')}
-            className="w-full py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm"
-          >
+          <button type="button" onClick={() => setStep('tips')} className="w-full py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm">
             Next
           </button>
-          <button type="button" onClick={onCancel} className="w-full py-2 text-xs text-[var(--muted)]">
-            Skip photo
-          </button>
+          <button type="button" onClick={onCancel} className="w-full py-2 text-xs text-[var(--muted)]">Skip photo</button>
         </>
       )}
 
-      {/* ── Step: Photo tips ──────────────────────────────────── */}
+      {/* ── Tips ──────────────────────────────────────────────── */}
       {step === 'tips' && (
         <>
           <div className="flex items-center gap-2 mb-1">
@@ -312,11 +302,7 @@ export function PhotoCaptureGuide({
             ))}
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setStep('select')}
-              className="flex-1 py-3 border border-[var(--border)] rounded-lg text-sm text-[var(--muted)]"
-            >
+            <button type="button" onClick={() => setStep('select')} className="flex-1 py-3 border border-[var(--border)] rounded-lg text-sm text-[var(--muted)]">
               Back
             </button>
             <button
