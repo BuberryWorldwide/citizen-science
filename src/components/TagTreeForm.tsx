@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { OfflineStore } from '@/lib/offline/store';
 import { compressImage } from '@/lib/image';
-import { PhotoCaptureGuide, type PlantOrgan } from './PhotoCaptureGuide';
+import { MultiPhotoCapture, type CapturedPhoto } from './MultiPhotoCapture';
 import { IconCamera } from './Icons';
 
 interface TagTreeFormProps {
@@ -85,31 +85,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
   const [submitting, setSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
   const [error, setError] = useState('');
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoOrgan, setPhotoOrgan] = useState<PlantOrgan>('leaf');
-  const [showPhotoGuide, setShowPhotoGuide] = useState(false);
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-
-  // Ref as backup source of truth for photo file
-  const photoFileRef = useRef<File | null>(null);
-
-  function dbg(...parts: unknown[]) {
-    const line = parts.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(' ');
-    console.log(line);
-    setDebugLog(prev => [...prev.slice(-30), line]);
-  }
-
-  const handlePhotoCapture = (file: File, organ: PlantOrgan) => {
-    dbg('[CAPTURE] file:', file?.name, 'type:', file?.type, 'size:', file?.size);
-    photoFileRef.current = file;
-    setPhotoFile(file);
-    setPhotoOrgan(organ);
-    setShowPhotoGuide(false);
-    const reader = new FileReader();
-    reader.onload = () => setPhotoPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
+  const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
 
   const toggleUsePotential = (value: string) => {
     setUsePotential(prev =>
@@ -123,15 +99,6 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     setSubmitting(true);
     setSubmitStatus('Saving tree...');
     setError('');
-    setDebugLog([]);
-
-    const traceId = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    dbg('[SUBMIT]', traceId, 'started');
-
-    const fileToUpload = photoFileRef.current ?? photoFile;
-    dbg('[SUBMIT]', traceId, 'photoFile state:', photoFile?.name, photoFile?.size);
-    dbg('[SUBMIT]', traceId, 'photoFileRef:', photoFileRef.current?.name, photoFileRef.current?.size);
-    dbg('[SUBMIT]', traceId, 'fileToUpload:', fileToUpload?.name, fileToUpload?.size);
 
     const treeData = {
       species: species || undefined,
@@ -148,122 +115,80 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     try {
       let apiRewards: unknown = null;
       if (navigator.onLine) {
-        // Step 1: Save tree
-        dbg('[SUBMIT]', traceId, 'POST /api/trees');
         const res = await fetch('/api/trees', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(treeData),
         });
-        const raw = await res.text();
-        dbg('[SUBMIT]', traceId, 'tree response status:', res.status);
-        dbg('[SUBMIT]', traceId, 'tree response:', raw.slice(0, 200));
-
-        let json;
-        try { json = JSON.parse(raw); } catch { throw new Error('Invalid tree response: ' + raw.slice(0, 100)); }
+        const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Tree save failed');
         apiRewards = json.rewards;
 
         const treeId = json.data?.id;
-        dbg('[SUBMIT]', traceId, 'treeId:', treeId);
         if (!treeId) throw new Error('Tree saved but no ID returned');
 
-        // Step 2: Upload photo if present
-        const willUpload = !!fileToUpload && !!treeId;
-        dbg('[SUBMIT]', traceId, 'willUpload:', willUpload);
-
-        if (willUpload) {
-          setSubmitStatus('Preparing photo...');
-
-          // Step 2a: Get observation ID
+        // Upload photos if any
+        if (photos.length > 0) {
+          // Get observation ID
           let observationId: string | null = null;
 
           if (health || trunkWidth || phenology) {
-            dbg('[SUBMIT]', traceId, 'fetching tree to get observation ID');
             const treeRes = await fetch(`/api/trees/${treeId}`);
-            const treeRaw = await treeRes.text();
-            dbg('[SUBMIT]', traceId, 'tree fetch status:', treeRes.status);
-            const treeJson = JSON.parse(treeRaw);
+            const treeJson = await treeRes.json();
             if (treeJson.success && treeJson.data?.observations?.length > 0) {
               observationId = treeJson.data.observations[0].id;
             }
-            dbg('[SUBMIT]', traceId, 'observationId from tree:', observationId);
           }
 
           if (!observationId) {
-            dbg('[SUBMIT]', traceId, 'creating fallback observation');
             const obsRes = await fetch('/api/observations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tree_id: treeId, notes: 'Initial photo' }),
+              body: JSON.stringify({ tree_id: treeId, notes: 'Initial photos' }),
             });
-            const obsRaw = await obsRes.text();
-            dbg('[SUBMIT]', traceId, 'obs create status:', obsRes.status, 'body:', obsRaw.slice(0, 200));
-            const obsJson = JSON.parse(obsRaw);
+            const obsJson = await obsRes.json();
             if (obsJson.success) observationId = obsJson.data.id;
-            dbg('[SUBMIT]', traceId, 'observationId from create:', observationId);
           }
 
-          if (!observationId) {
-            throw new Error('No observation ID available for photo upload');
-          }
+          if (!observationId) throw new Error('No observation ID for photo upload');
 
-          // Step 2b: Compress
-          setSubmitStatus('Compressing photo...');
-          dbg('[UPLOAD]', traceId, 'compressing file:', fileToUpload!.name, fileToUpload!.size);
-          const compressed = await compressImage(fileToUpload!);
-          dbg('[UPLOAD]', traceId, 'compressed:', compressed.name, compressed.size, compressed.type);
+          // Upload each photo
+          for (let i = 0; i < photos.length; i++) {
+            const photo = photos[i];
+            setSubmitStatus(`Uploading photo ${i + 1}/${photos.length}...`);
 
-          // Step 2c: Get upload URL
-          setSubmitStatus('Requesting upload URL...');
-          dbg('[UPLOAD]', traceId, 'POST /api/photos');
-          const photoRes = await fetch('/api/photos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              observation_id: observationId,
-              filename: compressed.name,
-              content_type: compressed.type,
-              organ: photoOrgan,
-            }),
-          });
-          const photoRaw = await photoRes.text();
-          dbg('[UPLOAD]', traceId, 'photo route status:', photoRes.status);
-          dbg('[UPLOAD]', traceId, 'photo route body:', photoRaw.slice(0, 300));
-
-          let photoJson;
-          try { photoJson = JSON.parse(photoRaw); } catch { throw new Error('Invalid photo response: ' + photoRaw.slice(0, 100)); }
-          if (!photoJson.success) throw new Error('Photo route failed: ' + (photoJson.error || photoRaw.slice(0, 100)));
-
-          const uploadUrl = photoJson.data?.upload_url;
-          dbg('[UPLOAD]', traceId, 'uploadUrl:', uploadUrl);
-          if (!uploadUrl) throw new Error('No upload_url in photo response');
-
-          // Step 2d: PUT file to upload URL with timeout
-          setSubmitStatus('Uploading photo...');
-          dbg('[UPLOAD]', traceId, 'PUT to:', uploadUrl);
-          dbg('[UPLOAD]', traceId, 'PUT size:', compressed.size, 'type:', compressed.type);
-
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
-          try {
-            const putRes = await fetch(uploadUrl, {
-              method: 'PUT',
-              body: compressed,
-              headers: { 'Content-Type': compressed.type || 'image/jpeg' },
-              signal: controller.signal,
+            const photoRes = await fetch('/api/photos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                observation_id: observationId,
+                filename: photo.file.name,
+                content_type: photo.file.type,
+                photo_type: photo.type,
+              }),
             });
-            clearTimeout(timeout);
-            const putBody = await putRes.text().catch(() => '');
-            dbg('[UPLOAD]', traceId, 'PUT status:', putRes.status, 'body:', putBody.slice(0, 200));
-            if (!putRes.ok) throw new Error(`PUT failed ${putRes.status}: ${putBody.slice(0, 100)}`);
-            dbg('[UPLOAD]', traceId, 'upload complete');
-          } catch (putErr) {
-            clearTimeout(timeout);
-            if ((putErr as Error).name === 'AbortError') {
-              throw new Error('Photo upload timed out after 30 seconds');
+            const photoJson = await photoRes.json();
+            if (!photoJson.success) throw new Error('Photo registration failed');
+
+            const uploadUrl = photoJson.data?.upload_url;
+            if (!uploadUrl) throw new Error('No upload URL returned');
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000);
+            try {
+              const putRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: photo.file,
+                headers: { 'Content-Type': photo.file.type || 'image/jpeg' },
+                signal: controller.signal,
+              });
+              clearTimeout(timeout);
+              if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
+            } catch (e) {
+              clearTimeout(timeout);
+              if ((e as Error).name === 'AbortError') throw new Error(`Photo ${i + 1} upload timed out`);
+              throw e;
             }
-            throw putErr;
           }
         }
       } else {
@@ -277,25 +202,23 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
           synced: false,
         });
 
-        if (fileToUpload) {
-          const compressed = await compressImage(fileToUpload);
-          const buffer = await compressed.arrayBuffer();
+        for (const photo of photos) {
+          const buffer = await photo.file.arrayBuffer();
           await OfflineStore.addPendingPhoto({
             local_id: uuidv4(),
             tree_local_id: treeLocalId,
-            filename: compressed.name,
-            content_type: compressed.type,
+            filename: photo.file.name,
+            content_type: photo.file.type,
             data: buffer,
           });
         }
       }
 
-      dbg('[SUBMIT]', traceId, 'SUCCESS');
       setSubmitStatus('');
       onSuccess(apiRewards);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      dbg('[SUBMIT] FAILED:', msg);
+      console.error('[TagTreeForm] submit failed:', msg);
       setError(msg);
       setSubmitStatus('');
     } finally {
@@ -388,28 +311,16 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
         </div>
       </div>
 
-      {/* Photo with guide */}
+      {/* Photos */}
       <div>
-        <label className="block text-sm text-[var(--muted)] mb-1">Photo</label>
-        {showPhotoGuide || photoPreview ? (
-          <PhotoCaptureGuide
-            onCapture={handlePhotoCapture}
-            onClear={() => { photoFileRef.current = null; setPhotoFile(null); setPhotoPreview(null); }}
-            onCancel={() => setShowPhotoGuide(false)}
-            photoPreview={photoPreview}
-            currentSpecies={species}
-            onSpeciesSuggestion={(s) => { if (!species || species === 'Other') setSpecies(s); }}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowPhotoGuide(true)}
-            className="w-full py-3 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted)] active:bg-[var(--border)] flex items-center justify-center gap-2"
-          >
-            <IconCamera size={16} />
-            Add Photo
-          </button>
-        )}
+        <label className="block text-sm text-[var(--muted)] mb-1">Photos</label>
+        <MultiPhotoCapture
+          photos={photos}
+          onPhotosChange={setPhotos}
+          maxPhotos={5}
+          currentSpecies={species}
+          onSpeciesSuggestion={(s) => { if (!species || species === 'Other') setSpecies(s); }}
+        />
       </div>
 
       {/* Notes */}
@@ -432,23 +343,6 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
       >
         {submitting ? (submitStatus || 'Saving...') : 'Tag This Tree'}
       </button>
-
-      {/* Debug log panel */}
-      {debugLog.length > 0 && (
-        <div style={{
-          background: '#111',
-          color: '#0f0',
-          fontSize: 10,
-          padding: 8,
-          borderRadius: 8,
-          maxHeight: '30vh',
-          overflow: 'auto',
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'monospace',
-        }}>
-          {debugLog.join('\n')}
-        </div>
-      )}
     </form>
   );
 }
