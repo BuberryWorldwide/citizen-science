@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { IconCamera, IconCheck, IconSearch } from './Icons';
+import { compressImage } from '@/lib/image';
 
 export type PlantOrgan = 'leaf' | 'fruit' | 'bark' | 'flower' | 'habit';
 
@@ -74,8 +75,10 @@ export function PhotoCaptureGuide({
     setScanResult(null);
 
     try {
+      // Compress before sending to PlantNet
+      const compressed = await compressImage(pendingFile);
       const formData = new FormData();
-      formData.append('image', pendingFile);
+      formData.append('image', compressed);
       formData.append('organ', selectedOrgan);
 
       const res = await fetch('/api/photos/identify', { method: 'POST', body: formData });

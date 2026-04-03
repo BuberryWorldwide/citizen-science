@@ -1,5 +1,6 @@
-const MAX_DIMENSION = 1600;
-const QUALITY = 0.8;
+const MAX_DIMENSION = 1024;
+const QUALITY = 0.65;
+const MAX_SIZE = 300_000; // 300KB target
 
 export async function compressImage(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
@@ -7,8 +8,8 @@ export async function compressImage(file: File): Promise<File> {
   const bitmap = await createImageBitmap(file);
   const { width, height } = bitmap;
 
-  // Skip if already small enough
-  if (width <= MAX_DIMENSION && height <= MAX_DIMENSION && file.size < 200_000) {
+  // Skip if already small
+  if (width <= MAX_DIMENSION && height <= MAX_DIMENSION && file.size < MAX_SIZE) {
     bitmap.close();
     return file;
   }
@@ -22,6 +23,13 @@ export async function compressImage(file: File): Promise<File> {
   ctx.drawImage(bitmap, 0, 0, newW, newH);
   bitmap.close();
 
-  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: QUALITY });
+  // Try progressively lower quality until under target size
+  let quality = QUALITY;
+  let blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+  while (blob.size > MAX_SIZE && quality > 0.3) {
+    quality -= 0.1;
+    blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+  }
+
   return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
 }
