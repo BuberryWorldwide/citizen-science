@@ -43,25 +43,34 @@ const USE_POTENTIAL_OPTIONS = [
   { value: 'heritage_variety', label: 'Heritage Variety' },
 ];
 
-async function uploadPhoto(rawFile: File, observationId: string): Promise<void> {
-  const file = await compressImage(rawFile);
-  const res = await fetch('/api/photos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      observation_id: observationId,
-      filename: file.name,
-      content_type: file.type,
-    }),
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error);
-
-  await fetch(json.data.upload_url, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type },
-  });
+function ChipSelect({ options, value, onChange, capitalize = true }: {
+  options: string[] | { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  capitalize?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((opt) => {
+        const v = typeof opt === 'string' ? opt : opt.value;
+        const label = typeof opt === 'string' ? opt : opt.label;
+        return (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(value === v ? '' : v)}
+            className={`px-3.5 py-2 rounded-full text-sm border ${capitalize ? 'capitalize' : ''} ${
+              value === v
+                ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
+                : 'border-[var(--border)] text-[var(--muted)]'
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps) {
@@ -74,22 +83,32 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
   const [usePotential, setUsePotential] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
   const [error, setError] = useState('');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoOrgan, setPhotoOrgan] = useState<PlantOrgan>('leaf');
   const [showPhotoGuide, setShowPhotoGuide] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
 
-  const handlePhotoCapture = async (file: File, organ: PlantOrgan) => {
-    // Clone the file to ensure it's fully readable after any prior consumption
-    const buffer = await file.arrayBuffer();
-    const freshFile = new File([buffer], file.name || 'photo.jpg', { type: file.type || 'image/jpeg' });
-    setPhotoFile(freshFile);
+  // Ref as backup source of truth for photo file
+  const photoFileRef = useRef<File | null>(null);
+
+  function dbg(...parts: unknown[]) {
+    const line = parts.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(' ');
+    console.log(line);
+    setDebugLog(prev => [...prev.slice(-30), line]);
+  }
+
+  const handlePhotoCapture = (file: File, organ: PlantOrgan) => {
+    dbg('[CAPTURE] file:', file?.name, 'type:', file?.type, 'size:', file?.size);
+    photoFileRef.current = file;
+    setPhotoFile(file);
     setPhotoOrgan(organ);
     setShowPhotoGuide(false);
     const reader = new FileReader();
     reader.onload = () => setPhotoPreview(reader.result as string);
-    reader.readAsDataURL(freshFile);
+    reader.readAsDataURL(file);
   };
 
   const toggleUsePotential = (value: string) => {
@@ -102,7 +121,17 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     e.preventDefault();
     if (!lat || !lon) { setError('Location required'); return; }
     setSubmitting(true);
+    setSubmitStatus('Saving tree...');
     setError('');
+    setDebugLog([]);
+
+    const traceId = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    dbg('[SUBMIT]', traceId, 'started');
+
+    const fileToUpload = photoFileRef.current ?? photoFile;
+    dbg('[SUBMIT]', traceId, 'photoFile state:', photoFile?.name, photoFile?.size);
+    dbg('[SUBMIT]', traceId, 'photoFileRef:', photoFileRef.current?.name, photoFileRef.current?.size);
+    dbg('[SUBMIT]', traceId, 'fileToUpload:', fileToUpload?.name, fileToUpload?.size);
 
     const treeData = {
       species: species || undefined,
@@ -119,52 +148,126 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     try {
       let apiRewards: unknown = null;
       if (navigator.onLine) {
+        // Step 1: Save tree
+        dbg('[SUBMIT]', traceId, 'POST /api/trees');
         const res = await fetch('/api/trees', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(treeData),
         });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error);
+        const raw = await res.text();
+        dbg('[SUBMIT]', traceId, 'tree response status:', res.status);
+        dbg('[SUBMIT]', traceId, 'tree response:', raw.slice(0, 200));
+
+        let json;
+        try { json = JSON.parse(raw); } catch { throw new Error('Invalid tree response: ' + raw.slice(0, 100)); }
+        if (!json.success) throw new Error(json.error || 'Tree save failed');
         apiRewards = json.rewards;
 
-        // Upload photo if one was captured
-        if (photoFile && json.data?.id) {
-          // Create an observation for the photo if one wasn't already created
-          // (the trees API creates a first observation if health/trunk_width/phenology provided)
+        const treeId = json.data?.id;
+        dbg('[SUBMIT]', traceId, 'treeId:', treeId);
+        if (!treeId) throw new Error('Tree saved but no ID returned');
+
+        // Step 2: Upload photo if present
+        const willUpload = !!fileToUpload && !!treeId;
+        dbg('[SUBMIT]', traceId, 'willUpload:', willUpload);
+
+        if (willUpload) {
+          setSubmitStatus('Preparing photo...');
+
+          // Step 2a: Get observation ID
           let observationId: string | null = null;
 
           if (health || trunkWidth || phenology) {
-            // Observation was created by the trees API — fetch it
-            const treeRes = await fetch(`/api/trees/${json.data.id}`);
-            const treeJson = await treeRes.json();
-            if (treeJson.success && treeJson.data.observations?.length > 0) {
+            dbg('[SUBMIT]', traceId, 'fetching tree to get observation ID');
+            const treeRes = await fetch(`/api/trees/${treeId}`);
+            const treeRaw = await treeRes.text();
+            dbg('[SUBMIT]', traceId, 'tree fetch status:', treeRes.status);
+            const treeJson = JSON.parse(treeRaw);
+            if (treeJson.success && treeJson.data?.observations?.length > 0) {
               observationId = treeJson.data.observations[0].id;
             }
+            dbg('[SUBMIT]', traceId, 'observationId from tree:', observationId);
           }
 
           if (!observationId) {
-            // Create a minimal observation to attach the photo to
+            dbg('[SUBMIT]', traceId, 'creating fallback observation');
             const obsRes = await fetch('/api/observations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tree_id: json.data.id, notes: 'Initial photo' }),
+              body: JSON.stringify({ tree_id: treeId, notes: 'Initial photo' }),
             });
-            const obsJson = await obsRes.json();
+            const obsRaw = await obsRes.text();
+            dbg('[SUBMIT]', traceId, 'obs create status:', obsRes.status, 'body:', obsRaw.slice(0, 200));
+            const obsJson = JSON.parse(obsRaw);
             if (obsJson.success) observationId = obsJson.data.id;
+            dbg('[SUBMIT]', traceId, 'observationId from create:', observationId);
           }
 
-          if (observationId) {
-            try {
-              await uploadPhoto(photoFile, observationId);
-            } catch (photoErr) {
-              console.error('Photo upload failed:', photoErr);
-              // Don't fail the whole submission for a photo error
+          if (!observationId) {
+            throw new Error('No observation ID available for photo upload');
+          }
+
+          // Step 2b: Compress
+          setSubmitStatus('Compressing photo...');
+          dbg('[UPLOAD]', traceId, 'compressing file:', fileToUpload!.name, fileToUpload!.size);
+          const compressed = await compressImage(fileToUpload!);
+          dbg('[UPLOAD]', traceId, 'compressed:', compressed.name, compressed.size, compressed.type);
+
+          // Step 2c: Get upload URL
+          setSubmitStatus('Requesting upload URL...');
+          dbg('[UPLOAD]', traceId, 'POST /api/photos');
+          const photoRes = await fetch('/api/photos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              observation_id: observationId,
+              filename: compressed.name,
+              content_type: compressed.type,
+              organ: photoOrgan,
+            }),
+          });
+          const photoRaw = await photoRes.text();
+          dbg('[UPLOAD]', traceId, 'photo route status:', photoRes.status);
+          dbg('[UPLOAD]', traceId, 'photo route body:', photoRaw.slice(0, 300));
+
+          let photoJson;
+          try { photoJson = JSON.parse(photoRaw); } catch { throw new Error('Invalid photo response: ' + photoRaw.slice(0, 100)); }
+          if (!photoJson.success) throw new Error('Photo route failed: ' + (photoJson.error || photoRaw.slice(0, 100)));
+
+          const uploadUrl = photoJson.data?.upload_url;
+          dbg('[UPLOAD]', traceId, 'uploadUrl:', uploadUrl);
+          if (!uploadUrl) throw new Error('No upload_url in photo response');
+
+          // Step 2d: PUT file to upload URL with timeout
+          setSubmitStatus('Uploading photo...');
+          dbg('[UPLOAD]', traceId, 'PUT to:', uploadUrl);
+          dbg('[UPLOAD]', traceId, 'PUT size:', compressed.size, 'type:', compressed.type);
+
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000);
+          try {
+            const putRes = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: compressed,
+              headers: { 'Content-Type': compressed.type || 'image/jpeg' },
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const putBody = await putRes.text().catch(() => '');
+            dbg('[UPLOAD]', traceId, 'PUT status:', putRes.status, 'body:', putBody.slice(0, 200));
+            if (!putRes.ok) throw new Error(`PUT failed ${putRes.status}: ${putBody.slice(0, 100)}`);
+            dbg('[UPLOAD]', traceId, 'upload complete');
+          } catch (putErr) {
+            clearTimeout(timeout);
+            if ((putErr as Error).name === 'AbortError') {
+              throw new Error('Photo upload timed out after 30 seconds');
             }
+            throw putErr;
           }
         }
       } else {
-        // Save to IndexedDB for later sync
+        // Offline path
         const treeLocalId = uuidv4();
         await OfflineStore.addPendingTree({
           local_id: treeLocalId,
@@ -174,8 +277,8 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
           synced: false,
         });
 
-        if (photoFile) {
-          const compressed = await compressImage(photoFile);
+        if (fileToUpload) {
+          const compressed = await compressImage(fileToUpload);
           const buffer = await compressed.arrayBuffer();
           await OfflineStore.addPendingPhoto({
             local_id: uuidv4(),
@@ -186,9 +289,15 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
           });
         }
       }
+
+      dbg('[SUBMIT]', traceId, 'SUCCESS');
+      setSubmitStatus('');
       onSuccess(apiRewards);
     } catch (err) {
-      setError((err as Error).message);
+      const msg = err instanceof Error ? err.message : String(err);
+      dbg('[SUBMIT] FAILED:', msg);
+      setError(msg);
+      setSubmitStatus('');
     } finally {
       setSubmitting(false);
     }
@@ -198,12 +307,12 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
     <form onSubmit={handleSubmit} className="p-4 pb-8 space-y-4 safe-area-bottom">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-bold">Tag a Tree</h2>
-        <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm min-h-[44px] px-3">Cancel</button>
+        <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm">Cancel</button>
       </div>
 
       {lat && lon && (
         <p className="text-xs text-[var(--muted)]">
-          {lat.toFixed(5)}, {lon.toFixed(5)}
+          Location: {lat.toFixed(5)}, {lon.toFixed(5)}
         </p>
       )}
 
@@ -237,103 +346,43 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
       {/* Accessibility */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Accessibility</label>
-        <div className="flex flex-wrap gap-2">
-          {ACCESSIBILITY_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setAccessibility(opt.value)}
-              className={`px-3.5 py-2 rounded-full text-sm border ${
-                accessibility === opt.value
-                  ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
-                  : 'border-[var(--border)] text-[var(--muted)]'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <ChipSelect options={ACCESSIBILITY_OPTIONS} value={accessibility} onChange={setAccessibility} capitalize={false} />
       </div>
 
       {/* Health */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Health</label>
-        <div className="flex flex-wrap gap-2">
-          {HEALTH_OPTIONS.map(h => (
-            <button
-              key={h}
-              type="button"
-              onClick={() => setHealth(h)}
-              className={`px-3.5 py-2 rounded-full text-sm border capitalize ${
-                health === h
-                  ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
-                  : 'border-[var(--border)] text-[var(--muted)]'
-              }`}
-            >
-              {h}
-            </button>
-          ))}
-        </div>
+        <ChipSelect options={HEALTH_OPTIONS} value={health} onChange={setHealth} />
       </div>
 
       {/* Trunk Width */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Trunk Width</label>
-        <div className="flex flex-wrap gap-2">
-          {TRUNK_OPTIONS.map(t => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => setTrunkWidth(t.value)}
-              className={`px-3.5 py-2 rounded-full text-sm border ${
-                trunkWidth === t.value
-                  ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
-                  : 'border-[var(--border)] text-[var(--muted)]'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <ChipSelect options={TRUNK_OPTIONS} value={trunkWidth} onChange={setTrunkWidth} capitalize={false} />
       </div>
 
       {/* Phenology */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Phenology</label>
-        <div className="flex flex-wrap gap-2">
-          {PHENOLOGY_OPTIONS.map(p => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPhenology(p)}
-              className={`px-3.5 py-2 rounded-full text-sm border capitalize ${
-                phenology === p
-                  ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
-                  : 'border-[var(--border)] text-[var(--muted)]'
-              }`}
-            >
-              {p.replace('_', ' ')}
-            </button>
-          ))}
-        </div>
+        <ChipSelect options={PHENOLOGY_OPTIONS} value={phenology} onChange={setPhenology} />
       </div>
 
       {/* Use Potential */}
       <div>
         <label className="block text-sm text-[var(--muted)] mb-1">Use Potential</label>
-        <div className="flex flex-wrap gap-2">
-          {USE_POTENTIAL_OPTIONS.map(u => (
+        <div className="flex flex-wrap gap-1.5">
+          {USE_POTENTIAL_OPTIONS.map(opt => (
             <button
-              key={u.value}
+              key={opt.value}
               type="button"
-              onClick={() => toggleUsePotential(u.value)}
+              onClick={() => toggleUsePotential(opt.value)}
               className={`px-3.5 py-2 rounded-full text-sm border ${
-                usePotential.includes(u.value)
+                usePotential.includes(opt.value)
                   ? 'bg-[var(--accent)] text-black border-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--muted)]'
               }`}
             >
-              {u.label}
+              {opt.label}
             </button>
           ))}
         </div>
@@ -345,7 +394,7 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
         {showPhotoGuide || photoPreview ? (
           <PhotoCaptureGuide
             onCapture={handlePhotoCapture}
-            onClear={() => { setPhotoFile(null); setPhotoPreview(null); }}
+            onClear={() => { photoFileRef.current = null; setPhotoFile(null); setPhotoPreview(null); }}
             onCancel={() => setShowPhotoGuide(false)}
             photoPreview={photoPreview}
             currentSpecies={species}
@@ -381,8 +430,25 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
         disabled={submitting}
         className="w-full py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm disabled:opacity-50 active:bg-[var(--accent-dim)]"
       >
-        {submitting ? (photoFile ? 'Saving & uploading...' : 'Saving...') : 'Tag This Tree'}
+        {submitting ? (submitStatus || 'Saving...') : 'Tag This Tree'}
       </button>
+
+      {/* Debug log panel */}
+      {debugLog.length > 0 && (
+        <div style={{
+          background: '#111',
+          color: '#0f0',
+          fontSize: 10,
+          padding: 8,
+          borderRadius: 8,
+          maxHeight: '30vh',
+          overflow: 'auto',
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'monospace',
+        }}>
+          {debugLog.join('\n')}
+        </div>
+      )}
     </form>
   );
 }
