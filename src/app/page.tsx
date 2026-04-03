@@ -21,8 +21,9 @@ import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, 
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { Tree } from '@/types/tree';
-import type { BaseLayer, MapOverlays, TreeMapHandle } from '@/components/TreeMap';
-import { TILE_LAYERS, BASE_LAYER_ORDER, DEFAULT_BASE_LAYER } from '@/components/TreeMap';
+import type { MapOverlays, TreeMapHandle } from '@/components/TreeMap';
+import { TILE_LAYERS, BASE_LAYER_ORDER, DEFAULT_BASE_LAYER } from '@/lib/map-config';
+import type { BaseLayer } from '@/lib/map-config';
 
 const TreeMap = dynamic(() => import('@/components/TreeMap'), {
   ssr: false,
