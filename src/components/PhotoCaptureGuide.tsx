@@ -46,16 +46,18 @@ export function PhotoCaptureGuide({
   const organ = ORGANS.find(o => o.id === selectedOrgan)!;
   const needsId = !currentSpecies || currentSpecies === 'Other' || currentSpecies === '';
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPendingFile(file);
+      // Compress immediately so all downstream uses get the small file
+      const compressed = await compressImage(file);
+      setPendingFile(compressed);
       const reader = new FileReader();
       reader.onload = () => {
         setPendingPreview(reader.result as string);
         setStep('review');
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(compressed);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
