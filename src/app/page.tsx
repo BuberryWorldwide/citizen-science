@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { TagTreeForm } from '@/components/TagTreeForm';
 import { TreeDetail } from '@/components/TreeDetail';
 import { ObservationForm } from '@/components/ObservationForm';
-import { SearchFilters, SearchParams } from '@/components/SearchFilters';
+import { SearchPanel } from '@/components/SearchPanel';
 import { BottomSheet } from '@/components/BottomSheet';
 import { BottomNav, NavTab } from '@/components/BottomNav';
 import { ProfilePanel } from '@/components/ProfilePanel';
@@ -19,7 +19,7 @@ import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus }
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { Tree } from '@/types/tree';
-import type { BaseLayer, MapOverlays } from '@/components/TreeMap';
+import type { BaseLayer, MapOverlays, TreeMapHandle } from '@/components/TreeMap';
 
 const TreeMap = dynamic(() => import('@/components/TreeMap'), {
   ssr: false,
@@ -37,7 +37,8 @@ export default function Home() {
   const [formLat, setFormLat] = useState<number | null>(null);
   const [formLon, setFormLon] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [activeFilters, setActiveFilters] = useState<SearchParams>({});
+  const [activeFilters, setActiveFilters] = useState<Record<string, string | number | undefined>>({});
+  const mapRef = useRef<TreeMapHandle>(null);
   const [activeTab, setActiveTab] = useState<NavTab>('map');
   const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
   const { data: session } = useSession();
@@ -69,14 +70,14 @@ export default function Home() {
 
   const fetchTrees = useCallback(async (
     bounds?: { south: number; west: number; north: number; east: number },
-    filters?: SearchParams,
+    filters?: Record<string, string | number | undefined>,
   ) => {
     if (!navigator.onLine) return;
     const f = filters ?? activeFilters;
     try {
       const params = new URLSearchParams();
-      if (f.species) params.set('species', f.species);
-      if (f.accessibility) params.set('accessibility', f.accessibility);
+      if (f.species) params.set('species', String(f.species));
+      if (f.accessibility) params.set('accessibility', String(f.accessibility));
       if (f.lat && f.lon && f.radius) {
         params.set('lat', String(f.lat));
         params.set('lon', String(f.lon));
@@ -95,9 +96,16 @@ export default function Home() {
     }
   }, [activeFilters]);
 
-  const handleSearch = (filters: SearchParams) => {
+  const handleSearch = (filters: Record<string, string | number | undefined>) => {
     setActiveFilters(filters);
     fetchTrees(undefined, filters);
+  };
+
+  const handleSearchSelectTree = (tree: Tree) => {
+    mapRef.current?.flyTo(tree.lat, tree.lon, 17);
+    setShowSearch(false);
+    // Open tree detail after a short delay for the fly animation
+    setTimeout(() => setSelectedTree(tree.id), 500);
   };
 
   useEffect(() => {
@@ -282,6 +290,7 @@ export default function Home() {
       {/* Full-screen map */}
       <div className="absolute inset-0">
         <TreeMap
+          ref={mapRef}
           trees={trees}
           userLocation={userLocation}
           baseLayer={baseLayer}
@@ -343,9 +352,14 @@ export default function Home() {
         )}
       </BottomSheet>
 
-      {/* Search Filters Sheet */}
+      {/* Search Panel */}
       <BottomSheet open={showSearch} onClose={() => { setShowSearch(false); setActiveTab('map'); }}>
-        <SearchFilters onSearch={handleSearch} userLocation={userLocation} overlay />
+        <SearchPanel
+          trees={trees}
+          userLocation={userLocation}
+          onSelectTree={handleSearchSelectTree}
+          onFilterChange={handleSearch}
+        />
       </BottomSheet>
 
       {/* Profile Sheet */}

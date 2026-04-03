@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -78,7 +78,11 @@ interface TreeMapProps {
   onBoundsChange: (bounds: { south: number; west: number; north: number; east: number }) => void;
 }
 
-export default function TreeMap({
+export interface TreeMapHandle {
+  flyTo: (lat: number, lon: number, zoom?: number) => void;
+}
+
+const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   trees,
   userLocation,
   baseLayer = 'standard',
@@ -87,7 +91,7 @@ export default function TreeMap({
   onMapClick,
   onTreeSelect,
   onBoundsChange,
-}: TreeMapProps) {
+}, ref) {
   const mapRef = useRef<L.Map | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -238,5 +242,13 @@ export default function TreeMap({
     }
   }, [trees, overlays.myTrees, overlays.speciesColor, userId, onTreeSelect]);
 
+  useImperativeHandle(ref, () => ({
+    flyTo: (lat: number, lon: number, zoom = 17) => {
+      mapRef.current?.flyTo([lat, lon], zoom, { duration: 0.8 });
+    },
+  }));
+
   return <div ref={containerRef} className="w-full h-full" />;
-}
+});
+
+export default TreeMap;
