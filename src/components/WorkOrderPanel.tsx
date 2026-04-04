@@ -29,6 +29,7 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [searchRadius, setSearchRadius] = useState(100000); // 100km default
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -41,7 +42,9 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
         if (userLocation) {
           params.set('lat', String(userLocation[0]));
           params.set('lon', String(userLocation[1]));
+          params.set('radius', String(searchRadius));
         }
+        params.set('limit', '50');
         url = `/api/work-orders?${params}`;
       }
       const res = await fetch(url);
@@ -52,7 +55,7 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
     } finally {
       setLoading(false);
     }
-  }, [tab, userLocation]);
+  }, [tab, userLocation, searchRadius]);
 
   useEffect(() => {
     fetchOrders();
@@ -110,8 +113,16 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
       {loading ? (
         <div className="text-center text-[var(--muted)] text-sm py-8">Loading quests...</div>
       ) : orders.length === 0 ? (
-        <div className="text-center text-[var(--muted)] text-sm py-8">
-          {tab === 'mine' ? 'No claimed quests yet.' : 'No quests available nearby.'}
+        <div className="text-center text-[var(--muted)] text-sm py-8 space-y-3">
+          <p>{tab === 'mine' ? 'No claimed quests yet.' : `No quests within ${Math.round(searchRadius / 1000)}km.`}</p>
+          {tab === 'nearby' && searchRadius < 500000 && (
+            <button
+              onClick={() => setSearchRadius(prev => prev * 5)}
+              className="px-4 py-2 border border-[var(--border)] rounded-lg text-xs text-[var(--accent)]"
+            >
+              Search wider area
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -176,6 +187,14 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
               </button>
             );
           })}
+          {tab === 'nearby' && searchRadius < 500000 && (
+            <button
+              onClick={() => setSearchRadius(prev => prev * 3)}
+              className="w-full py-2 text-xs text-[var(--muted)] text-center mt-2"
+            >
+              Showing within {Math.round(searchRadius / 1000)}km · Tap to expand
+            </button>
+          )}
         </div>
       )}
     </div>
