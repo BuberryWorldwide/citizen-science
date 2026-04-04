@@ -145,26 +145,29 @@ export default function Home() {
       const json = await res.json();
       if (json.success) setTrees(json.data);
 
-      // Fetch Falling Fruit community data if overlay is on
-      if (overlays.community && bounds) {
-        try {
-          const ffParams = new URLSearchParams();
-          ffParams.set('sw_lat', String(bounds.south));
-          ffParams.set('sw_lng', String(bounds.west));
-          ffParams.set('ne_lat', String(bounds.north));
-          ffParams.set('ne_lng', String(bounds.east));
-          ffParams.set('zoom', '14');
-          const ffRes = await fetch(`/api/ff/locations?${ffParams}`);
-          const ffJson = await ffRes.json();
-          if (ffJson.success) setFfLocations(ffJson.data || []);
-        } catch { setFfLocations([]); }
-      } else if (!overlays.community) {
-        setFfLocations([]);
-      }
     } catch (err) {
       console.error('Failed to fetch trees:', err);
     }
-  }, [activeFilters, overlays.community]);
+  }, [activeFilters]);
+
+  // Separate effect for Falling Fruit community data
+  useEffect(() => {
+    if (!overlays.community || !currentBounds) {
+      setFfLocations([]);
+      return;
+    }
+    const b = currentBounds;
+    const params = new URLSearchParams();
+    params.set('sw_lat', String(b.south));
+    params.set('sw_lng', String(b.west));
+    params.set('ne_lat', String(b.north));
+    params.set('ne_lng', String(b.east));
+    params.set('zoom', '14');
+    fetch(`/api/ff/locations?${params}`)
+      .then(r => r.json())
+      .then(json => { if (json.success) setFfLocations(json.data || []); })
+      .catch(() => setFfLocations([]));
+  }, [overlays.community, currentBounds]);
 
   const handleSearch = (filters: Record<string, string | number | undefined>) => {
     setActiveFilters(filters);
@@ -257,15 +260,7 @@ export default function Home() {
   };
 
   const toggleOverlay = (key: keyof MapOverlays) => {
-    setOverlays(prev => {
-      const next = { ...prev, [key]: !prev[key] };
-      if (key === 'community' && next.community && currentBounds) {
-        fetchTrees(currentBounds);
-      } else if (key === 'community' && !next.community) {
-        setFfLocations([]);
-      }
-      return next;
-    });
+    setOverlays(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
