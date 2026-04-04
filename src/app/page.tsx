@@ -18,13 +18,13 @@ import { RewardToast } from '@/components/RewardToast';
 import { BadgeModal } from '@/components/BadgeModal';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
-import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus } from '@/components/Icons';
+import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconMap } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { Tree } from '@/types/tree';
-import type { MapOverlays, TreeMapHandle } from '@/components/TreeMap';
+import type { TreeMapHandle } from '@/components/TreeMap';
 import { TILE_LAYERS, BASE_LAYER_ORDER, DEFAULT_BASE_LAYER } from '@/lib/map-config';
-import type { BaseLayer } from '@/lib/map-config';
+import type { BaseLayer, MapOverlays } from '@/lib/map-config';
 
 const TreeMap = dynamic(() => import('@/components/TreeMap'), {
   ssr: false,
@@ -60,7 +60,8 @@ export default function Home() {
     setBaseLayerState(layer);
     localStorage.setItem('buberry-basemap', layer);
   };
-  const [overlays, setOverlays] = useState<MapOverlays>({ heatmap: false, myTrees: false, speciesColor: true });
+  const [overlays, setOverlays] = useState<MapOverlays>({ heatmap: false, myTrees: false, speciesColor: true, community: false });
+  const [ffLocations, setFfLocations] = useState<{ ff_id: number; lat: number; lng: number; species: string }[]>([]);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [pendingRewards, setPendingRewards] = useState<{
     xpAwarded: number;
@@ -141,10 +142,27 @@ export default function Home() {
       const res = await fetch(`/api/trees?${params}`);
       const json = await res.json();
       if (json.success) setTrees(json.data);
+
+      // Fetch Falling Fruit community data if overlay is on
+      if (overlays.community && bounds) {
+        try {
+          const ffParams = new URLSearchParams();
+          ffParams.set('sw_lat', String(bounds.south));
+          ffParams.set('sw_lng', String(bounds.west));
+          ffParams.set('ne_lat', String(bounds.north));
+          ffParams.set('ne_lng', String(bounds.east));
+          ffParams.set('zoom', '14');
+          const ffRes = await fetch(`/api/ff/locations?${ffParams}`);
+          const ffJson = await ffRes.json();
+          if (ffJson.success) setFfLocations(ffJson.data || []);
+        } catch { setFfLocations([]); }
+      } else if (!overlays.community) {
+        setFfLocations([]);
+      }
     } catch (err) {
       console.error('Failed to fetch trees:', err);
     }
-  }, [activeFilters]);
+  }, [activeFilters, overlays.community]);
 
   const handleSearch = (filters: Record<string, string | number | undefined>) => {
     setActiveFilters(filters);
@@ -318,6 +336,7 @@ export default function Home() {
                   { key: 'heatmap' as const, label: 'Heat Map', icon: <IconHeat size={14} /> },
                   { key: 'myTrees' as const, label: 'My Trees', icon: <IconUser size={14} /> },
                   { key: 'speciesColor' as const, label: 'Species Color', icon: <IconTree size={14} /> },
+                  { key: 'community' as const, label: 'Community Trees', icon: <IconMap size={14} /> },
                 ]).map(item => (
                   <button
                     key={item.key}
@@ -358,6 +377,7 @@ export default function Home() {
         <TreeMap
           ref={mapRef}
           trees={trees}
+          ffLocations={ffLocations}
           userLocation={userLocation}
           baseLayer={baseLayer}
           overlays={overlays}

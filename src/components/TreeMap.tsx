@@ -49,20 +49,22 @@ const userIcon = L.divIcon({
 // ── Tile layers (config imported from lib/map-config to avoid SSR issues) ──
 
 import { TILE_LAYERS, DEFAULT_BASE_LAYER } from '@/lib/map-config';
-import type { BaseLayer } from '@/lib/map-config';
-
-// ── Overlay types ─────────────────────────────────────────────
-
-export interface MapOverlays {
-  heatmap: boolean;
-  myTrees: boolean;
-  speciesColor: boolean;
-}
+import type { BaseLayer, MapOverlays } from '@/lib/map-config';
 
 // ── Component ─────────────────────────────────────────────────
 
+interface FFLocation {
+  type?: string;
+  ff_id?: number;
+  lat: number;
+  lng: number;
+  species?: string;
+  count?: number;
+}
+
 interface TreeMapProps {
   trees: Tree[];
+  ffLocations?: FFLocation[];
   userLocation: [number, number] | null;
   baseLayer?: BaseLayer;
   overlays?: MapOverlays;
@@ -76,8 +78,26 @@ export interface TreeMapHandle {
   flyTo: (lat: number, lon: number, zoom?: number) => void;
 }
 
+// FF community marker style — orange, semi-transparent
+function ffMarkerSvg(): string {
+  return `<svg width="24" height="30" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 18 12 18s12-9.6 12-18C24 5.4 18.6 0 12 0z" fill="#ff8c00" opacity="0.6"/>
+    <circle cx="12" cy="11" r="4.5" fill="white" opacity="0.7"/>
+    <circle cx="12" cy="11" r="2.5" fill="#ff8c00" opacity="0.6"/>
+  </svg>`;
+}
+
+const ffIcon = L.divIcon({
+  className: 'ff-marker',
+  html: ffMarkerSvg(),
+  iconSize: [24, 30],
+  iconAnchor: [12, 30],
+  popupAnchor: [0, -30],
+});
+
 const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   trees,
+  ffLocations = [],
   userLocation,
   baseLayer = DEFAULT_BASE_LAYER,
   overlays = { heatmap: false, myTrees: false, speciesColor: true },
@@ -90,6 +110,7 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   const tileRef = useRef<L.TileLayer | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const heatRef = useRef<L.HeatLayer | null>(null);
+  const ffLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -245,6 +266,47 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
       clusterRef.current!.addLayer(marker);
     }
   }, [trees, overlays.myTrees, overlays.speciesColor, userId, onTreeSelect]);
+
+  // Render Falling Fruit community markers
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove old FF layer
+    if (ffLayerRef.current) {
+      mapRef.current.removeLayer(ffLayerRef.current);
+      ffLayerRef.current = null;
+    }
+
+    if (ffLocations.length === 0) return;
+
+    const layer = L.layerGroup();
+    for (const loc of ffLocations) {
+      if (loc.type === 'cluster') {
+        // Cluster marker for low zoom
+        const size = Math.min(40, 20 + Math.log2((loc as any).count || 1) * 5);
+        const icon = L.divIcon({
+          className: 'ff-cluster',
+          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,140,0,0.4);border:2px solid rgba(255,140,0,0.6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#fff">${(loc as any).count}</div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        });
+        L.marker([loc.lat, loc.lng], { icon }).addTo(layer);
+      } else {
+        // Individual FF tree marker
+        const marker = L.marker([loc.lat, loc.lng], { icon: ffIcon });
+        marker.bindPopup(
+          `<div style="min-width:120px;font-family:system-ui;text-align:center">
+            <div style="font-size:12px;font-weight:bold;margin-bottom:4px">${loc.species}</div>
+            <div style="font-size:10px;color:#888;margin-bottom:6px">Community reported</div>
+            <div style="font-size:9px;color:#aaa">via Falling Fruit</div>
+          </div>`
+        );
+        marker.addTo(layer);
+      }
+    }
+    layer.addTo(mapRef.current);
+    ffLayerRef.current = layer;
+  }, [ffLocations]);
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat: number, lon: number, zoom = 17) => {

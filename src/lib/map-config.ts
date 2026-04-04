@@ -38,3 +38,11 @@ export const TILE_LAYERS: Record<BaseLayer, TileLayerDef> = {
 
 export const BASE_LAYER_ORDER: BaseLayer[] = ['clean', 'dark', 'standard', 'satellite'];
 export const DEFAULT_BASE_LAYER: BaseLayer = 'clean';
+
+// Overlay that includes Falling Fruit community data
+export interface MapOverlays {
+  heatmap: boolean;
+  myTrees: boolean;
+  speciesColor: boolean;
+  community: boolean;
+}
