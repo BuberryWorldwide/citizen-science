@@ -94,6 +94,7 @@ export default function Home() {
     const params = new URLSearchParams();
     params.set('lat', String(userLocation[0]));
     params.set('lon', String(userLocation[1]));
+    params.set('radius', '10000'); // 10km radius
     fetch(`/api/work-orders?${params}`)
       .then(r => r.json())
       .then(json => { if (json.success && Array.isArray(json.data)) setTaskCount(json.data.length); })
