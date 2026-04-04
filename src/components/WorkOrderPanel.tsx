@@ -12,9 +12,10 @@ interface WorkOrderPanelProps {
 type Tab = 'nearby' | 'mine';
 
 const TYPE_CONFIG: Record<string, { icon: typeof IconCheck; label: string; color: string }> = {
-  verify_species:   { icon: IconCheck,  label: 'Verify',   color: 'var(--accent)' },
-  add_photo:        { icon: IconCamera, label: 'Photo',    color: '#fbbf24' },
-  confirm_location: { icon: IconMap,    label: 'Location', color: '#60a5fa' },
+  verify_species:   { icon: IconCheck,    label: 'Verify',  color: 'var(--accent)' },
+  add_photo:        { icon: IconCamera,   label: 'Photo',   color: '#fbbf24' },
+  confirm_location: { icon: IconMap,      label: 'Location', color: '#60a5fa' },
+  seasonal_update:  { icon: IconClipboard, label: 'Update',  color: '#f97316' },
 };
 
 function formatDistance(meters?: number): string {
