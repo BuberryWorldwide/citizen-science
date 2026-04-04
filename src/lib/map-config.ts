@@ -1,6 +1,6 @@
 // Map tile layer configuration — separate from TreeMap to avoid Leaflet SSR issues
 
-export type BaseLayer = 'clean' | 'dark' | 'game' | 'satellite';
+export type BaseLayer = 'clean' | 'dark' | 'standard' | 'satellite';
 
 export interface TileLayerDef {
   url: string;
@@ -22,11 +22,11 @@ export const TILE_LAYERS: Record<BaseLayer, TileLayerDef> = {
     maxZoom: 19,
     label: 'Dark',
   },
-  game: {
-    url: 'https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://stadiamaps.com/">Stadia</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; OSM',
+  standard: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors',
     maxZoom: 19,
-    label: 'Game',
+    label: 'Standard',
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -36,5 +36,5 @@ export const TILE_LAYERS: Record<BaseLayer, TileLayerDef> = {
   },
 };
 
-export const BASE_LAYER_ORDER: BaseLayer[] = ['clean', 'dark', 'game', 'satellite'];
+export const BASE_LAYER_ORDER: BaseLayer[] = ['clean', 'dark', 'standard', 'satellite'];
 export const DEFAULT_BASE_LAYER: BaseLayer = 'clean';
