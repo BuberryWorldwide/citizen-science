@@ -114,9 +114,8 @@ export default function Home() {
   };
 
   const handleWorkOrderSelectTree = (treeId: string, lat: number, lon: number) => {
-    setShowWorkOrders(false);
+    // Fly to tree but keep quest panel open
     mapRef.current?.flyTo(lat, lon, 17);
-    setTimeout(() => setSelectedTree(treeId), 500);
   };
 
   const fetchTrees = useCallback(async (

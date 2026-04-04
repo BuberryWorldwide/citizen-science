@@ -136,8 +136,10 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
               <button
                 key={order.id}
                 onClick={() => {
-                  if (order.tree_lat != null && order.tree_lon != null) {
-                    onSelectTree(order.tree_id, order.tree_lat, order.tree_lon);
+                  const lat = (order as any).lat ?? order.tree_lat;
+                  const lon = (order as any).lon ?? order.tree_lon;
+                  if (lat != null && lon != null) {
+                    onSelectTree(order.tree_id, lat, lon);
                   }
                 }}
                 className="w-full flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg text-left active:bg-[var(--bg)] transition-colors"
@@ -154,7 +156,7 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium truncate">
-                      {order.tree_species || 'Unknown Tree'}
+                      {(order as any).species || order.tree_species || 'Unknown Tree'}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--muted)] shrink-0">
                       {cfg.label}
