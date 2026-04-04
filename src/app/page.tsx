@@ -34,6 +34,7 @@ const TreeMap = dynamic(() => import('@/components/TreeMap'), {
 export default function Home() {
   const router = useRouter();
   const [trees, setTrees] = useState<Tree[]>([]);
+  const [currentBounds, setCurrentBounds] = useState<{ south: number; west: number; north: number; east: number } | null>(null);
   const [selectedTree, setSelectedTree] = useState<string | null>(null);
   const [observingTree, setObservingTree] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -124,6 +125,7 @@ export default function Home() {
     filters?: Record<string, string | number | undefined>,
   ) => {
     if (!navigator.onLine) return;
+    if (bounds) setCurrentBounds(bounds);
     const f = filters ?? activeFilters;
     try {
       const params = new URLSearchParams();
@@ -257,9 +259,8 @@ export default function Home() {
   const toggleOverlay = (key: keyof MapOverlays) => {
     setOverlays(prev => {
       const next = { ...prev, [key]: !prev[key] };
-      // Re-fetch when community overlay toggled on
-      if (key === 'community' && next.community) {
-        fetchTrees();
+      if (key === 'community' && next.community && currentBounds) {
+        fetchTrees(currentBounds);
       } else if (key === 'community' && !next.community) {
         setFfLocations([]);
       }
