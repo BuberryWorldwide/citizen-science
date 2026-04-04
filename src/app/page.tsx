@@ -47,7 +47,7 @@ export default function Home() {
   const mapRef = useRef<TreeMapHandle>(null);
   const [activeTab, setActiveTab] = useState<NavTab>('map');
   const { isOnline, pendingCount, syncing, refreshPendingCount } = useOnlineStatus();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const { theme, toggle: toggleTheme } = useTheme();
   const [baseLayer, setBaseLayerState] = useState<BaseLayer>(DEFAULT_BASE_LAYER);
 
@@ -104,7 +104,7 @@ export default function Home() {
   }, [session, userLocation]);
 
   const handleVerify = (treeId: string) => {
-    if (!session) { setShowAuthGate(true); return; }
+    if (!isAuthenticated) { setShowAuthGate(true); return; }
     const tree = trees.find(t => t.id === treeId);
     setSelectedTree(null);
     setVerifyingTree({ id: treeId, species: tree?.species || null });
@@ -191,8 +191,10 @@ export default function Home() {
     }
   }, [fetchTrees]);
 
+  const isAuthenticated = sessionStatus === 'authenticated' && !!session;
+
   const handleTagHere = () => {
-    if (!session) { setShowAuthGate(true); return; }
+    if (!isAuthenticated) { setShowAuthGate(true); return; }
     if (userLocation) {
       setFormLat(userLocation[0]);
       setFormLon(userLocation[1]);
@@ -201,7 +203,7 @@ export default function Home() {
   };
 
   const handleMapClick = (lat: number, lon: number) => {
-    if (!session) { setShowAuthGate(true); return; }
+    if (!isAuthenticated) { setShowAuthGate(true); return; }
     setFormLat(lat);
     setFormLon(lon);
     setShowForm(true);
@@ -233,7 +235,7 @@ export default function Home() {
   };
 
   const handleAddObservation = (treeId: string) => {
-    if (!session) { setShowAuthGate(true); return; }
+    if (!isAuthenticated) { setShowAuthGate(true); return; }
     setSelectedTree(null);
     setObservingTree(treeId);
   };
@@ -487,7 +489,7 @@ export default function Home() {
       </BottomSheet>
 
       {/* Auth banner — floating prompt for unauthenticated users */}
-      {!session && !authBannerDismissed && !showOnboarding && !showAuthGate && (
+      {sessionStatus === 'unauthenticated' && !authBannerDismissed && !showOnboarding && !showAuthGate && (
         <AuthPrompt variant="banner" onDismiss={() => setAuthBannerDismissed(true)} />
       )}
 
