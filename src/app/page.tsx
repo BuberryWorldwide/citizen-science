@@ -255,7 +255,16 @@ export default function Home() {
   };
 
   const toggleOverlay = (key: keyof MapOverlays) => {
-    setOverlays(prev => ({ ...prev, [key]: !prev[key] }));
+    setOverlays(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      // Re-fetch when community overlay toggled on
+      if (key === 'community' && next.community) {
+        fetchTrees();
+      } else if (key === 'community' && !next.community) {
+        setFfLocations([]);
+      }
+      return next;
+    });
   };
 
   return (
