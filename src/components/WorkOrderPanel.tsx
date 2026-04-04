@@ -77,7 +77,7 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <IconClipboard size={20} />
-          Tasks
+          Quests
         </h2>
       </div>
 
@@ -91,7 +91,7 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
               : 'text-[var(--muted)]'
           }`}
         >
-          Nearby Tasks
+          Nearby
         </button>
         <button
           onClick={() => setTab('mine')}
@@ -101,16 +101,16 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
               : 'text-[var(--muted)]'
           }`}
         >
-          My Tasks
+          My Quests
         </button>
       </div>
 
       {/* Orders list */}
       {loading ? (
-        <div className="text-center text-[var(--muted)] text-sm py-8">Loading tasks...</div>
+        <div className="text-center text-[var(--muted)] text-sm py-8">Loading quests...</div>
       ) : orders.length === 0 ? (
         <div className="text-center text-[var(--muted)] text-sm py-8">
-          {tab === 'mine' ? 'No claimed tasks yet.' : 'No tasks available nearby.'}
+          {tab === 'mine' ? 'No claimed quests yet.' : 'No quests available nearby.'}
         </div>
       ) : (
         <div className="space-y-2">

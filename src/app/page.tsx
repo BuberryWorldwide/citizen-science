@@ -18,7 +18,7 @@ import { RewardToast } from '@/components/RewardToast';
 import { BadgeModal } from '@/components/BadgeModal';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
-import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconClipboard } from '@/components/Icons';
+import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { Tree } from '@/types/tree';
@@ -221,13 +221,18 @@ export default function Home() {
     if (tab === 'map') {
       setShowSearch(false);
       setShowProfile(false);
+      setShowWorkOrders(false);
     } else if (tab === 'search') {
       setShowProfile(false);
+      setShowWorkOrders(false);
       setShowSearch(true);
-    } else if (tab === 'projects') {
-      router.push('/projects');
+    } else if (tab === 'quests') {
+      setShowSearch(false);
+      setShowProfile(false);
+      setShowWorkOrders(true);
     } else if (tab === 'profile') {
       setShowSearch(false);
+      setShowWorkOrders(false);
       setShowProfile(true);
     }
   };
@@ -380,6 +385,7 @@ export default function Home() {
         active={activeTab}
         onTabChange={handleTabChange}
         pendingCount={pendingCount}
+        questCount={taskCount}
       />
 
       {/* Tag Tree Sheet */}
@@ -443,30 +449,18 @@ export default function Home() {
         )}
       </BottomSheet>
 
-      {/* Work Orders Sheet */}
-      <BottomSheet open={showWorkOrders} onClose={() => setShowWorkOrders(false)}>
+      {/* Quests Sheet */}
+      <BottomSheet open={showWorkOrders} onClose={() => { setShowWorkOrders(false); setActiveTab('map'); }}>
         <WorkOrderPanel
           userLocation={userLocation}
           onSelectTree={handleWorkOrderSelectTree}
         />
       </BottomSheet>
 
-      {/* Auth gate sheet — shown when unauthenticated user tries to contribute */}
+      {/* Auth gate sheet */}
       <BottomSheet open={showAuthGate} onClose={() => setShowAuthGate(false)}>
         <AuthPrompt variant="gate" />
       </BottomSheet>
-
-      {/* Floating task count chip */}
-      {session && taskCount > 0 && !showWorkOrders && !showForm && !selectedTree && !verifyingTree && (
-        <button
-          onClick={() => setShowWorkOrders(true)}
-          className="fixed z-[700] right-3 flex items-center gap-1.5 px-3 py-2 backdrop-blur rounded-full border border-[var(--border)] shadow-sm text-xs font-medium animate-bounce-in"
-          style={{ background: 'var(--pill-bg)', top: '3.5rem' }}
-        >
-          <IconClipboard size={14} color="var(--accent)" />
-          <span>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
-        </button>
-      )}
 
       {/* Auth banner — floating prompt for unauthenticated users */}
       {!session && !authBannerDismissed && !showOnboarding && !showAuthGate && (

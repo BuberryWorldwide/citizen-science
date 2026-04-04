@@ -1,23 +1,24 @@
 'use client';
 
-import { IconMap, IconSearch, IconFolder, IconUser } from '@/components/Icons';
+import { IconMap, IconSearch, IconTarget, IconUser } from '@/components/Icons';
 
-export type NavTab = 'map' | 'search' | 'projects' | 'profile';
+export type NavTab = 'map' | 'search' | 'quests' | 'profile';
 
 interface BottomNavProps {
   active: NavTab;
   onTabChange: (tab: NavTab) => void;
   pendingCount?: number;
+  questCount?: number;
 }
 
 const tabs: { id: NavTab; label: string; icon: typeof IconMap }[] = [
   { id: 'map', label: 'Explore', icon: IconMap },
   { id: 'search', label: 'Search', icon: IconSearch },
-  { id: 'projects', label: 'Projects', icon: IconFolder },
+  { id: 'quests', label: 'Quests', icon: IconTarget },
   { id: 'profile', label: 'Profile', icon: IconUser },
 ];
 
-export function BottomNav({ active, onTabChange, pendingCount }: BottomNavProps) {
+export function BottomNav({ active, onTabChange, pendingCount, questCount }: BottomNavProps) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[900] bg-[var(--surface)] border-t border-[var(--border)] safe-area-bottom">
       <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
@@ -49,6 +50,11 @@ export function BottomNav({ active, onTabChange, pendingCount }: BottomNavProps)
               {tab.id === 'map' && pendingCount && pendingCount > 0 ? (
                 <span className="absolute -top-0.5 -right-0.5 px-1 min-w-[16px] h-4 bg-[var(--warn)] text-black text-[10px] font-bold rounded-full flex items-center justify-center">
                   {pendingCount}
+                </span>
+              ) : null}
+              {tab.id === 'quests' && questCount && questCount > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 px-1 min-w-[16px] h-4 bg-[var(--accent)] text-black text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {questCount > 99 ? '99+' : questCount}
                 </span>
               ) : null}
             </button>
