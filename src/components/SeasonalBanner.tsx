@@ -35,7 +35,7 @@ export function SeasonalBanner({ userLocation }: { userLocation: [number, number
 
   return (
     <div className="absolute top-14 left-0 right-0 z-[600] px-2 pointer-events-none">
-      <div className="pointer-events-auto overflow-x-auto scrollbar-hide">
+      <div className="pointer-events-auto overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1.5 py-1.5 px-1 w-max">
           <div
             className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold shrink-0"
