@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { TreeWithObservations, VerificationStatus } from '@/types/tree';
 import { Project } from '@/lib/db/projects';
-import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag, IconMap, IconLeaf } from '@/components/Icons';
+import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag, IconMap, IconLeaf, IconCamera } from '@/components/Icons';
 import type { QuestContext } from './WorkOrderPanel';
 
 interface TreeDetailProps {
@@ -106,6 +106,38 @@ export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, curren
           )}
         </div>
       )}
+
+      {/* Smart prompts — what this tree needs */}
+      {(() => {
+        const allPhotos = tree.observations?.flatMap(o => o.photos || []) || [];
+        const hasPhotos = allPhotos.length > 0;
+        const lastObs = tree.observations?.[0];
+        const lastObsDate = lastObs ? new Date(lastObs.observed_at) : null;
+        const daysSinceObs = lastObsDate ? (Date.now() - lastObsDate.getTime()) / 86400000 : 999;
+        const hasPhenology = tree.observations?.some(o => o.phenology);
+        const prompts: { text: string; color: string; icon: React.ReactNode }[] = [];
+
+        if (!hasPhotos) prompts.push({ text: 'This tree needs a photo — add one to help verify it', color: '#fbbf24', icon: <IconCamera size={14} color="#fbbf24" /> });
+        if (!hasPhenology) prompts.push({ text: 'No phenology recorded yet — what stage is this tree in?', color: '#22c55e', icon: <IconLeaf size={14} color="#22c55e" /> });
+        if (daysSinceObs > 180) prompts.push({ text: `Last observation was ${Math.round(daysSinceObs / 30)} months ago — time for an update`, color: '#f97316', icon: <IconAlertTriangle size={14} color="#f97316" /> });
+
+        if (prompts.length === 0 || activeQuest) return null;
+        return (
+          <div className="mb-4 space-y-1.5">
+            {prompts.map((p, i) => (
+              <button
+                key={i}
+                onClick={() => onAddObservation?.(treeId)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs"
+                style={{ background: `color-mix(in srgb, ${p.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${p.color} 25%, transparent)` }}
+              >
+                {p.icon}
+                <span style={{ color: 'var(--fg)' }}>{p.text}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Tree info */}
       <div className="grid grid-cols-2 gap-2 text-sm mb-4">
