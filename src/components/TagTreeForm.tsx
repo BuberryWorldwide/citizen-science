@@ -17,7 +17,7 @@ interface TagTreeFormProps {
 const SPECIES_OPTIONS = [
   'Mulberry', 'Pawpaw', 'Persimmon', 'Pecan', 'Apple', 'Pear',
   'Bradford Pear', 'Cherry', 'Plum', 'Fig', 'Muscadine', 'Peach',
-  'Walnut', 'Hickory', 'Oak', 'Maple', 'Other',
+  'Walnut', 'Hickory', 'Oak', 'Maple', 'Citrus', 'Chestnut', 'Other',
 ];
 
 const ACCESSIBILITY_OPTIONS = [

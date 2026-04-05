@@ -17,7 +17,7 @@ export interface SearchParams {
   radius?: number;
 }
 
-const SPECIES_QUICK = ['Mulberry', 'Pawpaw', 'Persimmon', 'Bradford Pear', 'Pecan', 'Fig'];
+const SPECIES_QUICK = ['Mulberry', 'Pawpaw', 'Persimmon', 'Bradford Pear', 'Pecan', 'Fig', 'Citrus'];
 const ACCESS_OPTIONS = ['public', 'roadside', 'permission_needed', 'private'];
 const PHENOLOGY_OPTIONS = ['dormant', 'bud_break', 'leaf_out', 'flowering', 'fruiting', 'ripe_fruit'];
 const RADIUS_OPTIONS = [
