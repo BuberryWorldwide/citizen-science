@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { TreeWithObservations, VerificationStatus } from '@/types/tree';
 import { Project } from '@/lib/db/projects';
-import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag } from '@/components/Icons';
+import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag, IconMap } from '@/components/Icons';
 
 interface TreeDetailProps {
   treeId: string;
@@ -184,6 +184,15 @@ export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, curren
 
       {/* Action buttons */}
       <div className="flex gap-2 mb-4">
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${tree.lat},${tree.lon}&travelmode=walking`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="py-2 px-3 bg-[#3b82f6] text-white rounded-lg text-sm font-medium min-h-[44px] flex items-center justify-center gap-1.5 active:opacity-80"
+        >
+          <IconMap size={16} />
+          Directions
+        </a>
         {onAddObservation && (
           <button
             onClick={() => onAddObservation(treeId)}
