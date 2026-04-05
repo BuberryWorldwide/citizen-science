@@ -115,7 +115,7 @@ This repo is the frontend only. The backend API is a separate Express server tha
 - User auth adapter
 - Falling Fruit data caching
 
-To run locally, you'll need to set up the backend separately. See the API documentation for endpoint details. The frontend expects the API at whatever `NEXT_PUBLIC_API_URL` points to.
+To run locally, you'll need to set up the backend separately. The API is not included in this repo. The frontend expects the API at whatever `NEXT_PUBLIC_API_URL` points to.
 
 ## Contributing
 
