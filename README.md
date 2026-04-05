@@ -141,6 +141,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Community verification builds trust without centralized gatekeeping
 - Attribution matters — first discoverers get credit
 
+## Third-Party Data
+
+### Falling Fruit
+
+The "Community Trees" map overlay displays data from [Falling Fruit](https://fallingfruit.org), a community foraging map. This data is **read-only** — we display it, we don't own it and we don't modify it. The integration is one-way: Falling Fruit data flows in as a reference layer for our users to discover and verify trees in their area. No Buberry data currently flows back to Falling Fruit. Any future two-way data sharing would be a formal partnership agreement with the Falling Fruit team.
+
 ## Acknowledgments
 
 - [Falling Fruit](https://fallingfruit.org) — community foraging map data and API access
