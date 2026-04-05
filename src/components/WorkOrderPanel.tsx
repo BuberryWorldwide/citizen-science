@@ -170,8 +170,22 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
                   </div>
                 </div>
 
-                {/* Action */}
-                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                {/* Actions */}
+                <div className="shrink-0 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  {(() => {
+                    const lat = (order as any).lat ?? order.tree_lat;
+                    const lon = (order as any).lon ?? order.tree_lon;
+                    return lat != null && lon != null ? (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=walking`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-[#3b82f6] text-white rounded-lg text-xs font-medium"
+                      >
+                        <IconMap size={14} />
+                      </a>
+                    ) : null;
+                  })()}
                   {isClaimed ? (
                     <span className="px-3 py-1.5 bg-[var(--accent)] text-black rounded-lg text-xs font-medium">
                       Go
