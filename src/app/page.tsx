@@ -19,6 +19,7 @@ import { BadgeModal } from '@/components/BadgeModal';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
 import { SeasonalBanner } from '@/components/SeasonalBanner';
+import type { QuestContext } from '@/components/WorkOrderPanel';
 import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconMap } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
@@ -37,6 +38,7 @@ export default function Home() {
   const [trees, setTrees] = useState<Tree[]>([]);
   const [currentBounds, setCurrentBounds] = useState<{ south: number; west: number; north: number; east: number; zoom?: number } | null>(null);
   const [selectedTree, setSelectedTree] = useState<string | null>(null);
+  const [activeQuest, setActiveQuest] = useState<QuestContext | null>(null);
   const [observingTree, setObservingTree] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -117,9 +119,10 @@ export default function Home() {
     fetchTrees();
   };
 
-  const handleWorkOrderSelectTree = (treeId: string, lat: number, lon: number) => {
+  const handleWorkOrderSelectTree = (treeId: string, lat: number, lon: number, quest?: QuestContext) => {
     mapRef.current?.flyTo(lat, lon, 17);
     setShowWorkOrders(false);
+    setActiveQuest(quest || null);
     setSelectedTree(treeId);
   };
 
@@ -421,7 +424,7 @@ export default function Home() {
           overlays={overlays}
           userId={session?.user?.id}
           onMapClick={handleMapClick}
-          onTreeSelect={(id) => setSelectedTree(id)}
+          onTreeSelect={(id) => { setActiveQuest(null); setSelectedTree(id); }}
           onFFAdopt={handleFFAdopt}
           onBoundsChange={fetchTrees}
         />
@@ -464,10 +467,11 @@ export default function Home() {
         {selectedTree && (
           <TreeDetail
             treeId={selectedTree}
-            onClose={() => setSelectedTree(null)}
+            onClose={() => { setSelectedTree(null); setActiveQuest(null); }}
             onAddObservation={handleAddObservation}
             onVerify={handleVerify}
             currentUserId={session?.user?.id || null}
+            activeQuest={activeQuest}
           />
         )}
       </BottomSheet>

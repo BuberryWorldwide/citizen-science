@@ -4,9 +4,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { WorkOrder } from '@/types/tree';
 import { IconCheck, IconCamera, IconMap, IconClipboard, IconLeaf } from '@/components/Icons';
 
+export interface QuestContext {
+  orderId: string;
+  orderType: string;
+  expectedPhase?: string;
+  questText?: { verb: string; lookFor: string; tip: string };
+  rewardPoints: number;
+}
+
 interface WorkOrderPanelProps {
   userLocation: [number, number] | null;
-  onSelectTree: (treeId: string, lat: number, lon: number) => void;
+  onSelectTree: (treeId: string, lat: number, lon: number, quest?: QuestContext) => void;
 }
 
 type Tab = 'nearby' | 'mine';
@@ -140,7 +148,14 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
                   const lat = (order as any).lat ?? order.tree_lat;
                   const lon = (order as any).lon ?? order.tree_lon;
                   if (lat != null && lon != null) {
-                    onSelectTree(order.tree_id, lat, lon);
+                    const rd = (order as any).result_data;
+                    onSelectTree(order.tree_id, lat, lon, {
+                      orderId: order.id,
+                      orderType: order.order_type,
+                      expectedPhase: rd?.expected_phase,
+                      questText: rd?.quest_text,
+                      rewardPoints: order.reward_points,
+                    });
                   }
                 }}
                 className="w-full flex items-center gap-3 p-3 border border-[var(--border)] rounded-lg text-left active:bg-[var(--bg)] transition-colors"

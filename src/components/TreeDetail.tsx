@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { TreeWithObservations, VerificationStatus } from '@/types/tree';
 import { Project } from '@/lib/db/projects';
-import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag, IconMap } from '@/components/Icons';
+import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag, IconMap, IconLeaf } from '@/components/Icons';
+import type { QuestContext } from './WorkOrderPanel';
 
 interface TreeDetailProps {
   treeId: string;
@@ -11,9 +12,10 @@ interface TreeDetailProps {
   onAddObservation?: (treeId: string) => void;
   onVerify?: (treeId: string) => void;
   currentUserId?: string | null;
+  activeQuest?: QuestContext | null;
 }
 
-export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, currentUserId }: TreeDetailProps) {
+export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, currentUserId, activeQuest }: TreeDetailProps) {
   const [tree, setTree] = useState<TreeWithObservations | null>(null);
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -84,6 +86,26 @@ export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, curren
         </div>
         <button onClick={onClose} className="text-[var(--muted)] text-sm min-h-[44px] px-3">Close</button>
       </div>
+
+      {/* Active quest banner */}
+      {activeQuest && (
+        <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: 'rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.08)' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <IconLeaf size={16} color="#22c55e" />
+            <span className="text-sm font-semibold" style={{ color: '#22c55e' }}>
+              {activeQuest.orderType === 'check_phenology' ? 'Phenology Quest' : 'Quest'}
+            </span>
+            <span className="ml-auto text-xs font-medium" style={{ color: '#fbbf24' }}>+{activeQuest.rewardPoints} pts</span>
+          </div>
+          {activeQuest.questText && (
+            <>
+              <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>{activeQuest.questText.verb}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{activeQuest.questText.lookFor}</p>
+              <p className="text-xs mt-1 italic" style={{ color: 'var(--accent)' }}>{activeQuest.questText.tip}</p>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Tree info */}
       <div className="grid grid-cols-2 gap-2 text-sm mb-4">
