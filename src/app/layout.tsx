@@ -4,8 +4,22 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Buberry Citizen Science',
-  description: 'Scout and map valuable tree genetics',
+  description: 'Track and monitor trees with AI species identification, seasonal phenology quests, and community verification. Citizen science for regenerative agroforestry.',
   manifest: '/manifest.json',
+  openGraph: {
+    title: 'Buberry Citizen Science',
+    description: 'Track trees with AI species ID, seasonal quests, and community verification. Citizen science for agroforestry.',
+    url: 'https://citizen.buberryworldwide.com',
+    siteName: 'Buberry Worldwide',
+    type: 'website',
+    images: [{ url: 'https://citizen.buberryworldwide.com/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Buberry Citizen Science',
+    description: 'Track trees with AI species ID, seasonal quests, and community verification.',
+    images: ['https://citizen.buberryworldwide.com/og-image.png'],
+  },
 };
 
 export const viewport: Viewport = {
