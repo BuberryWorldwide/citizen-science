@@ -104,6 +104,7 @@ export default function Home() {
   }, [session, userLocation]);
 
   const handleVerify = (treeId: string) => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) { setShowAuthGate(true); return; }
     const tree = trees.find(t => t.id === treeId);
     setSelectedTree(null);
@@ -192,8 +193,10 @@ export default function Home() {
   }, [fetchTrees]);
 
   const isAuthenticated = sessionStatus === 'authenticated' && !!session;
+  const isAuthLoading = sessionStatus === 'loading';
 
   const handleTagHere = () => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) { setShowAuthGate(true); return; }
     if (userLocation) {
       setFormLat(userLocation[0]);
@@ -203,6 +206,7 @@ export default function Home() {
   };
 
   const handleMapClick = (lat: number, lon: number) => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) { setShowAuthGate(true); return; }
     setFormLat(lat);
     setFormLon(lon);
@@ -235,6 +239,7 @@ export default function Home() {
   };
 
   const handleAddObservation = (treeId: string) => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) { setShowAuthGate(true); return; }
     setSelectedTree(null);
     setObservingTree(treeId);
