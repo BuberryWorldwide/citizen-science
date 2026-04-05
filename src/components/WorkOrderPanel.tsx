@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { WorkOrder } from '@/types/tree';
-import { IconCheck, IconCamera, IconMap, IconClipboard } from '@/components/Icons';
+import { IconCheck, IconCamera, IconMap, IconClipboard, IconLeaf } from '@/components/Icons';
 
 interface WorkOrderPanelProps {
   userLocation: [number, number] | null;
@@ -12,10 +12,11 @@ interface WorkOrderPanelProps {
 type Tab = 'nearby' | 'mine';
 
 const TYPE_CONFIG: Record<string, { icon: typeof IconCheck; label: string; color: string }> = {
-  verify_species:   { icon: IconCheck,    label: 'Verify',  color: 'var(--accent)' },
-  add_photo:        { icon: IconCamera,   label: 'Photo',   color: '#fbbf24' },
-  confirm_location: { icon: IconMap,      label: 'Location', color: '#60a5fa' },
-  seasonal_update:  { icon: IconClipboard, label: 'Update',  color: '#f97316' },
+  verify_species:   { icon: IconCheck,    label: 'Verify',    color: 'var(--accent)' },
+  add_photo:        { icon: IconCamera,   label: 'Photo',     color: '#fbbf24' },
+  confirm_location: { icon: IconMap,      label: 'Location',  color: '#60a5fa' },
+  seasonal_update:  { icon: IconClipboard, label: 'Update',   color: '#f97316' },
+  check_phenology:  { icon: IconLeaf,     label: 'Phenology', color: '#22c55e' },
 };
 
 function formatDistance(meters?: number): string {
@@ -162,6 +163,11 @@ export function WorkOrderPanel({ userLocation, onSelectTree }: WorkOrderPanelPro
                       {cfg.label}
                     </span>
                   </div>
+                  {order.order_type === 'check_phenology' && (order as any).result_data?.quest_text && (
+                    <div className="text-xs text-[var(--accent)] mt-0.5 truncate">
+                      {(order as any).result_data.quest_text.verb} — {(order as any).result_data.quest_text.lookFor.toLowerCase()}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-xs text-[var(--muted)] mt-0.5">
                     {dist && <span>{dist} away</span>}
                     {order.reward_points > 0 && (

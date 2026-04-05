@@ -27,7 +27,7 @@ export interface Tree {
 export interface WorkOrder {
   id: string;
   tree_id: string;
-  order_type: 'verify_species' | 'add_photo' | 'confirm_location';
+  order_type: 'verify_species' | 'add_photo' | 'confirm_location' | 'check_phenology' | 'seasonal_update';
   status: 'open' | 'claimed' | 'completed' | 'expired';
   priority: number;
   reward_points: number;

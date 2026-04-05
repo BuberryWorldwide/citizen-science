@@ -18,6 +18,7 @@ import { RewardToast } from '@/components/RewardToast';
 import { BadgeModal } from '@/components/BadgeModal';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
+import { SeasonalBanner } from '@/components/SeasonalBanner';
 import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconMap } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTheme } from '@/hooks/useTheme';
@@ -424,6 +425,9 @@ export default function Home() {
           onBoundsChange={fetchTrees}
         />
       </div>
+
+      {/* Seasonal phenology banner */}
+      <SeasonalBanner userLocation={userLocation} />
 
       {/* FAB — Tag Tree */}
       <button
