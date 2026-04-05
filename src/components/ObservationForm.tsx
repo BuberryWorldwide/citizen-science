@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { OfflineStore } from '@/lib/offline/store';
 import { compressImage } from '@/lib/image';
-import { PhotoCaptureGuide, type PlantOrgan } from './PhotoCaptureGuide';
-import { IconCamera } from './Icons';
+import { MultiPhotoCapture, type CapturedPhoto } from './MultiPhotoCapture';
 
 interface ObservationFormProps {
   treeId: string;
@@ -60,27 +59,6 @@ function ChipSelect({ options, value, onChange, capitalize = true }: {
   );
 }
 
-async function uploadPhoto(rawFile: File, observationId: string, organ?: PlantOrgan): Promise<void> {
-  const file = await compressImage(rawFile);
-  const res = await fetch('/api/photos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      observation_id: observationId,
-      filename: file.name,
-      content_type: file.type,
-      organ: organ || 'habit',
-    }),
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error);
-
-  await fetch(json.data.upload_url, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type },
-  });
-}
 
 export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationFormProps) {
   const [health, setHealth] = useState('');
@@ -96,22 +74,11 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
   const [reliability, setReliability] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
   const [error, setError] = useState('');
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoOrgan, setPhotoOrgan] = useState<PlantOrgan>('leaf');
-  const [showPhotoGuide, setShowPhotoGuide] = useState(false);
+  const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
 
   const showHarvestFields = ['fruiting', 'ripe_fruit'].includes(phenology);
-
-  const handlePhotoCapture = (file: File, organ: PlantOrgan) => {
-    setPhotoFile(file);
-    setPhotoOrgan(organ);
-    setShowPhotoGuide(false);
-    const reader = new FileReader();
-    reader.onload = () => setPhotoPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,6 +104,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
     try {
       let apiRewards: unknown = null;
       if (navigator.onLine) {
+        setSubmitStatus('Saving observation...');
         const res = await fetch('/api/observations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -145,13 +113,42 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         const json = await res.json();
         if (!json.success) throw new Error(json.error);
         apiRewards = json.rewards;
+        const observationId = json.data?.id;
 
-        // Upload photo if captured
-        if (photoFile && json.data?.id) {
-          try {
-            await uploadPhoto(photoFile, json.data.id, photoOrgan);
-          } catch (photoErr) {
-            console.error('Photo upload failed:', photoErr);
+        // Upload photos
+        if (photos.length > 0 && observationId) {
+          for (let i = 0; i < photos.length; i++) {
+            const photo = photos[i];
+            setSubmitStatus(`Uploading photo ${i + 1}/${photos.length}...`);
+
+            const photoRes = await fetch('/api/photos', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                observation_id: observationId,
+                filename: photo.file.name,
+                content_type: photo.file.type,
+                photo_type: photo.type,
+              }),
+            });
+            const photoJson = await photoRes.json();
+            if (!photoJson.success) throw new Error('Photo registration failed');
+
+            const uploadUrl = photoJson.data?.upload_url;
+            if (!uploadUrl) throw new Error('No upload URL returned');
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000);
+            try {
+              await fetch(uploadUrl, {
+                method: 'PUT',
+                body: photo.file,
+                headers: { 'Content-Type': photo.file.type },
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timeout);
+            }
           }
         }
       } else {
@@ -167,8 +164,8 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
           synced: false,
         });
 
-        if (photoFile) {
-          const compressed = await compressImage(photoFile);
+        for (const photo of photos) {
+          const compressed = await compressImage(photo.file);
           const buffer = await compressed.arrayBuffer();
           await OfflineStore.addPendingPhoto({
             local_id: uuidv4(),
@@ -184,6 +181,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
       setError((err as Error).message);
     } finally {
       setSubmitting(false);
+      setSubmitStatus('');
     }
   };
 
@@ -284,27 +282,11 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         </>
       )}
 
-      {/* Photo with guide */}
-      <div>
-        <label className="block text-sm text-[var(--muted)] mb-1">Photo</label>
-        {showPhotoGuide || photoPreview ? (
-          <PhotoCaptureGuide
-            onCapture={handlePhotoCapture}
-            onClear={() => { setPhotoFile(null); setPhotoPreview(null); }}
-            onCancel={() => setShowPhotoGuide(false)}
-            photoPreview={photoPreview}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowPhotoGuide(true)}
-            className="w-full py-3 border border-dashed border-[var(--border)] rounded-lg text-sm text-[var(--muted)] active:bg-[var(--border)] flex items-center justify-center gap-2"
-          >
-            <IconCamera size={16} />
-            Add Photo
-          </button>
-        )}
-      </div>
+      {/* Photos */}
+      <MultiPhotoCapture
+        photos={photos}
+        onPhotosChange={setPhotos}
+      />
 
       {/* Notes */}
       <div>
@@ -323,7 +305,7 @@ export function ObservationForm({ treeId, onSuccess, onCancel }: ObservationForm
         disabled={submitting}
         className="w-full py-3 bg-[var(--accent)] text-black rounded-lg font-medium text-sm disabled:opacity-50 active:bg-[var(--accent-dim)]"
       >
-        {submitting ? (photoFile ? 'Saving & uploading...' : 'Saving...') : 'Save Observation'}
+        {submitting ? (submitStatus || 'Saving...') : 'Save Observation'}
       </button>
     </form>
   );
