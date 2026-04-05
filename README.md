@@ -117,18 +117,6 @@ This repo is the frontend only. The backend API is a separate Express server tha
 
 To run locally, you'll need to set up the backend separately. See the API documentation for endpoint details. The frontend expects the API at whatever `NEXT_PUBLIC_API_URL` points to.
 
-## Database Migrations
-
-SQL migration scripts are in `scripts/` for reference. They run against the backend database, not the frontend.
-
-| Script | Purpose |
-|--------|---------|
-| `001-schema.sql` | Core schema (trees, observations, photos, projects) |
-| `002-schema-migration.sql` | Schema updates |
-| `003-points-system.sql` | Points + user stats |
-| `004-gamification.sql` | Achievements, challenges, streaks |
-| `005-verification-workorders.sql` | Verification, work orders, first discovery |
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
