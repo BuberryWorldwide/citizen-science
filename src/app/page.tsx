@@ -219,6 +219,24 @@ export default function Home() {
     setShowForm(true);
   };
 
+  const handleFFAdopt = async (ffId: number) => {
+    if (isAuthLoading) return;
+    if (!isAuthenticated) { setShowAuthGate(true); return; }
+    try {
+      const res = await fetch(`/api/ff/adopt/${ffId}`, { method: 'POST' });
+      const json = await res.json();
+      if (json.success && json.data?.tree) {
+        // Refresh trees to show the new native tree
+        fetchTrees(currentBounds ?? undefined);
+        // Remove from FF overlay
+        setFfLocations(prev => prev.filter(l => l.ff_id !== ffId));
+        if (json.data.rewards) processRewards(json.data.rewards);
+      }
+    } catch (err) {
+      console.error('Failed to adopt FF tree:', err);
+    }
+  };
+
   const processRewards = (rewards: unknown) => {
     if (!rewards) return;
     const r = rewards as typeof pendingRewards;
@@ -402,6 +420,7 @@ export default function Home() {
           userId={session?.user?.id}
           onMapClick={handleMapClick}
           onTreeSelect={(id) => setSelectedTree(id)}
+          onFFAdopt={handleFFAdopt}
           onBoundsChange={fetchTrees}
         />
       </div>

@@ -71,6 +71,7 @@ interface TreeMapProps {
   userId?: string;
   onMapClick: (lat: number, lon: number) => void;
   onTreeSelect: (id: string) => void;
+  onFFAdopt?: (ffId: number) => void;
   onBoundsChange: (bounds: { south: number; west: number; north: number; east: number; zoom: number }) => void;
 }
 
@@ -104,6 +105,7 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   userId,
   onMapClick,
   onTreeSelect,
+  onFFAdopt,
   onBoundsChange,
 }, ref) {
   const mapRef = useRef<L.Map | null>(null);
@@ -298,13 +300,29 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
     for (const loc of ffLocations) {
       if (loc.type === 'cluster') continue; // skip server clusters — client clustering handles it
       const marker = L.marker([loc.lat, loc.lng], { icon: ffIcon });
-      marker.bindPopup(
-        `<div style="min-width:120px;font-family:system-ui;text-align:center">
-          <div style="font-size:12px;font-weight:bold;margin-bottom:4px">${loc.species}</div>
-          <div style="font-size:10px;color:#888;margin-bottom:6px">Community reported</div>
-          <div style="font-size:9px;color:#aaa">via Falling Fruit</div>
-        </div>`
-      );
+      const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}&travelmode=walking`;
+      const popupHtml = `<div style="min-width:160px;font-family:system-ui;text-align:center">
+        <div style="font-size:13px;font-weight:bold;margin-bottom:2px">${loc.species || 'Unknown'}</div>
+        <div style="font-size:10px;color:#888;margin-bottom:8px">Community reported · via Falling Fruit</div>
+        <div style="display:flex;gap:6px">
+          <a href="${directionsUrl}" target="_blank" rel="noopener"
+            style="flex:1;padding:6px 0;border-radius:6px;background:#3b82f6;color:#fff;font-size:11px;font-weight:600;text-decoration:none;text-align:center;display:block">
+            Directions
+          </a>
+          <button data-ff-adopt="${loc.ff_id}"
+            style="flex:1;padding:6px 0;border-radius:6px;background:#ff8c00;color:#fff;font-size:11px;font-weight:600;border:none;cursor:pointer">
+            Claim Tree
+          </button>
+        </div>
+      </div>`;
+      const popup = L.popup().setContent(popupHtml);
+      marker.bindPopup(popup);
+      marker.on('popupopen', () => {
+        const btn = document.querySelector(`[data-ff-adopt="${loc.ff_id}"]`);
+        if (btn && onFFAdopt) {
+          btn.addEventListener('click', () => onFFAdopt(loc.ff_id!));
+        }
+      });
       layer.addLayer(marker);
     }
     layer.addTo(mapRef.current);
