@@ -34,7 +34,7 @@ const TreeMap = dynamic(() => import('@/components/TreeMap'), {
 export default function Home() {
   const router = useRouter();
   const [trees, setTrees] = useState<Tree[]>([]);
-  const [currentBounds, setCurrentBounds] = useState<{ south: number; west: number; north: number; east: number } | null>(null);
+  const [currentBounds, setCurrentBounds] = useState<{ south: number; west: number; north: number; east: number; zoom?: number } | null>(null);
   const [selectedTree, setSelectedTree] = useState<string | null>(null);
   const [observingTree, setObservingTree] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -157,13 +157,19 @@ export default function Home() {
       setFfLocations([]);
       return;
     }
+    // Don't fetch individual FF locations when zoomed out too far — too many markers
+    const zoom = currentBounds.zoom ?? 14;
+    if (zoom < 10) {
+      setFfLocations([]);
+      return;
+    }
     const b = currentBounds;
     const params = new URLSearchParams();
     params.set('sw_lat', String(b.south));
     params.set('sw_lng', String(b.west));
     params.set('ne_lat', String(b.north));
     params.set('ne_lng', String(b.east));
-    params.set('zoom', '14');
+    params.set('zoom', String(zoom));
     fetch(`/api/ff/locations?${params}`)
       .then(r => r.json())
       .then(json => { if (json.success) setFfLocations(json.data || []); })

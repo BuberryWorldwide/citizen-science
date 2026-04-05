@@ -71,7 +71,7 @@ interface TreeMapProps {
   userId?: string;
   onMapClick: (lat: number, lon: number) => void;
   onTreeSelect: (id: string) => void;
-  onBoundsChange: (bounds: { south: number; west: number; north: number; east: number }) => void;
+  onBoundsChange: (bounds: { south: number; west: number; north: number; east: number; zoom: number }) => void;
 }
 
 export interface TreeMapHandle {
@@ -110,7 +110,7 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   const tileRef = useRef<L.TileLayer | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const heatRef = useRef<L.HeatLayer | null>(null);
-  const ffLayerRef = useRef<L.LayerGroup | null>(null);
+  const ffLayerRef = useRef<L.MarkerClusterGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -163,6 +163,7 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
         west: b.getWest(),
         north: b.getNorth(),
         east: b.getEast(),
+        zoom: map.getZoom(),
       });
     });
 
@@ -267,7 +268,7 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
     }
   }, [trees, overlays.myTrees, overlays.speciesColor, userId, onTreeSelect]);
 
-  // Render Falling Fruit community markers
+  // Render Falling Fruit community markers — clustered for performance
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -279,30 +280,32 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
 
     if (ffLocations.length === 0) return;
 
-    const layer = L.layerGroup();
-    for (const loc of ffLocations) {
-      if (loc.type === 'cluster') {
-        // Cluster marker for low zoom
-        const size = Math.min(40, 20 + Math.log2((loc as any).count || 1) * 5);
-        const icon = L.divIcon({
+    const layer = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      iconCreateFunction: (cluster: L.MarkerCluster) => {
+        const count = cluster.getChildCount();
+        const size = Math.min(44, 24 + Math.log2(count) * 5);
+        return L.divIcon({
+          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,140,0,0.5);border:2px solid rgba(255,140,0,0.7);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.4)">${count}</div>`,
           className: 'ff-cluster',
-          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,140,0,0.4);border:2px solid rgba(255,140,0,0.6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:#fff">${(loc as any).count}</div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
+          iconSize: L.point(size, size),
         });
-        L.marker([loc.lat, loc.lng], { icon }).addTo(layer);
-      } else {
-        // Individual FF tree marker
-        const marker = L.marker([loc.lat, loc.lng], { icon: ffIcon });
-        marker.bindPopup(
-          `<div style="min-width:120px;font-family:system-ui;text-align:center">
-            <div style="font-size:12px;font-weight:bold;margin-bottom:4px">${loc.species}</div>
-            <div style="font-size:10px;color:#888;margin-bottom:6px">Community reported</div>
-            <div style="font-size:9px;color:#aaa">via Falling Fruit</div>
-          </div>`
-        );
-        marker.addTo(layer);
-      }
+      },
+    });
+
+    for (const loc of ffLocations) {
+      if (loc.type === 'cluster') continue; // skip server clusters — client clustering handles it
+      const marker = L.marker([loc.lat, loc.lng], { icon: ffIcon });
+      marker.bindPopup(
+        `<div style="min-width:120px;font-family:system-ui;text-align:center">
+          <div style="font-size:12px;font-weight:bold;margin-bottom:4px">${loc.species}</div>
+          <div style="font-size:10px;color:#888;margin-bottom:6px">Community reported</div>
+          <div style="font-size:9px;color:#aaa">via Falling Fruit</div>
+        </div>`
+      );
+      layer.addLayer(marker);
     }
     layer.addTo(mapRef.current);
     ffLayerRef.current = layer;
