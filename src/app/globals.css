@@ -290,6 +290,80 @@ body.sheet-open {
 .rt-fire { animation: rt-fire-wiggle 0.6s ease-in-out; }
 .rt-streak-bar { animation: rt-streak-gradient 1.5s linear infinite; }
 
+/* ── Lesson prose styling ─────────────────────────────────────── */
+.lesson-prose {
+  line-height: 1.7;
+  font-size: 0.9rem;
+}
+.lesson-prose h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  line-height: 1.3;
+  color: var(--fg);
+}
+.lesson-prose h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 1.75rem;
+  margin-bottom: 0.6rem;
+  color: var(--fg);
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+.lesson-prose h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+  color: var(--fg);
+}
+.lesson-prose p {
+  margin: 0.6rem 0;
+  color: var(--fg);
+  opacity: 0.9;
+}
+.lesson-prose strong {
+  color: var(--fg);
+  font-weight: 600;
+  opacity: 1;
+}
+.lesson-prose em {
+  font-style: italic;
+  opacity: 0.85;
+}
+.lesson-prose ul, .lesson-prose ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+.lesson-prose ul { list-style-type: disc; }
+.lesson-prose ol { list-style-type: decimal; }
+.lesson-prose li {
+  margin: 0.25rem 0;
+  color: var(--fg);
+  opacity: 0.9;
+}
+.lesson-prose li strong {
+  opacity: 1;
+}
+.lesson-prose blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 1rem;
+  margin: 0.75rem 0;
+  background: var(--accent-glow);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+}
+.lesson-prose blockquote p {
+  margin: 0;
+}
+.lesson-prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
 /* User location pulse */
 .user-pulse {
   width: 20px;
