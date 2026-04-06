@@ -27,6 +27,7 @@ interface LeaderboardEntry {
   user_id: string;
   name: string;
   email: string;
+  display_name: string;
   total_points: number;
 }
 
@@ -396,10 +397,10 @@ export function ProfilePanel() {
                           color: isMe ? 'black' : 'var(--muted)',
                         }}
                       >
-                        {(entry.name || entry.email || '?')[0].toUpperCase()}
+                        {(entry.display_name || entry.name || entry.email || '?')[0].toUpperCase()}
                       </div>
                       <span className={`flex-1 truncate ${isMe ? 'font-medium' : ''}`}>
-                        {entry.name || entry.email?.split('@')[0] || 'User'}
+                        {entry.display_name || entry.name || entry.email?.split('@')[0] || 'User'}
                         {isMe && <span className="text-[10px] text-[var(--muted)] ml-1">(you)</span>}
                       </span>
                       <span className="text-xs font-medium text-[var(--accent)]">{entry.total_points}</span>
