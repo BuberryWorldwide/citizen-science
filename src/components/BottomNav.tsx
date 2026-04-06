@@ -1,8 +1,8 @@
 'use client';
 
-import { IconMap, IconSearch, IconTarget, IconUser, IconGraduate } from '@/components/Icons';
+import { IconMap, IconSearch, IconTarget, IconUser } from '@/components/Icons';
 
-export type NavTab = 'map' | 'search' | 'quests' | 'learn' | 'profile';
+export type NavTab = 'map' | 'search' | 'quests' | 'profile';
 
 interface BottomNavProps {
   active: NavTab;
@@ -15,7 +15,6 @@ const tabs: { id: NavTab; label: string; icon: typeof IconMap }[] = [
   { id: 'map', label: 'Explore', icon: IconMap },
   { id: 'search', label: 'Search', icon: IconSearch },
   { id: 'quests', label: 'Quests', icon: IconTarget },
-  { id: 'learn', label: 'Learn', icon: IconGraduate },
   { id: 'profile', label: 'Profile', icon: IconUser },
 ];
 

@@ -356,24 +356,6 @@ export function IconClipboard(p: IconProps) {
   );
 }
 
-export function IconGraduate(p: IconProps) {
-  return (
-    <I {...p}>
-      <path d="M22 10l-10-5L2 10l10 5 10-5z" />
-      <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5" />
-      <line x1="22" y1="10" x2="22" y2="16" />
-    </I>
-  );
-}
-
-export function IconChevron(p: IconProps) {
-  return (
-    <I {...p}>
-      <polyline points="6 9 12 15 18 9" />
-    </I>
-  );
-}
-
 export function IconFlag(p: IconProps) {
   return (
     <I {...p}>

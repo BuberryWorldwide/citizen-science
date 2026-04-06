@@ -19,7 +19,6 @@ import { BadgeModal } from '@/components/BadgeModal';
 import { AuthPrompt } from '@/components/AuthPrompt';
 import Onboarding from '@/components/Onboarding';
 import { SeasonalBanner } from '@/components/SeasonalBanner';
-import { LearnPanel } from '@/components/LearnPanel';
 import type { QuestContext } from '@/components/WorkOrderPanel';
 import { IconLayers, IconSun, IconMoon, IconHeat, IconUser, IconTree, IconPlus, IconMap } from '@/components/Icons';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -79,7 +78,6 @@ export default function Home() {
   const [showAuthGate, setShowAuthGate] = useState(false);
   const [verifyingTree, setVerifyingTree] = useState<{ id: string; species: string | null } | null>(null);
   const [showWorkOrders, setShowWorkOrders] = useState(false);
-  const [showLearn, setShowLearn] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
   const [badgeToShow, setBadgeToShow] = useState<{ title: string; description: string; icon: string } | null>(null);
 
@@ -282,26 +280,17 @@ export default function Home() {
       setShowSearch(false);
       setShowProfile(false);
       setShowWorkOrders(false);
-      setShowLearn(false);
     } else if (tab === 'search') {
       setShowProfile(false);
       setShowWorkOrders(false);
-      setShowLearn(false);
       setShowSearch(true);
     } else if (tab === 'quests') {
       setShowSearch(false);
       setShowProfile(false);
-      setShowLearn(false);
       setShowWorkOrders(true);
-    } else if (tab === 'learn') {
-      setShowSearch(false);
-      setShowProfile(false);
-      setShowWorkOrders(false);
-      setShowLearn(true);
     } else if (tab === 'profile') {
       setShowSearch(false);
       setShowWorkOrders(false);
-      setShowLearn(false);
       setShowProfile(true);
     }
   };
@@ -506,11 +495,6 @@ export default function Home() {
           onSelectTree={handleSearchSelectTree}
           onFilterChange={handleSearch}
         />
-      </BottomSheet>
-
-      {/* Learn Sheet */}
-      <BottomSheet open={showLearn} onClose={() => { setShowLearn(false); setActiveTab('map'); }}>
-        <LearnPanel />
       </BottomSheet>
 
       {/* Profile Sheet */}
