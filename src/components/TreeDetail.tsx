@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TreeWithObservations, VerificationStatus } from '@/types/tree';
+import { TreeWithObservations, VerificationStatus, PlantNetResult } from '@/types/tree';
 import { Project } from '@/lib/db/projects';
 import { IconCheck, IconX, IconAlertTriangle, IconHelpCircle, IconStar, IconFlag, IconMap, IconLeaf, IconCamera } from '@/components/Icons';
 import type { QuestContext } from './WorkOrderPanel';
@@ -181,25 +181,7 @@ export function TreeDetail({ treeId, onClose, onAddObservation, onVerify, curren
         </div>
 
         {tree.plantnet_species && (
-          <div className="border border-[var(--border)] rounded-lg p-2.5 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[var(--muted)]">AI suggests:</span>
-              <span className="font-medium">{tree.plantnet_species}</span>
-            </div>
-            {tree.verification_confidence != null && (
-              <div className="mt-1.5">
-                <div className="w-full h-1.5 bg-[var(--bg)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.round(tree.verification_confidence * 100)}%`,
-                      background: tree.verification_confidence > 0.8 ? 'var(--accent)' : tree.verification_confidence > 0.5 ? 'var(--warn)' : '#ef4444',
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          <PlantNetSection tree={tree} />
         )}
 
         {canVerify && (
@@ -333,7 +315,82 @@ function VerificationBadge({ status, confidence }: { status: VerificationStatus;
 
 // ── Observation Card (expandable) ────────────────────────────
 
-import { Observation } from '@/types/tree';
+import { Observation, ObservationPhoto } from '@/types/tree';
+
+// ── PlantNet Results Section ───────────────────────────────────
+
+function PlantNetSection({ tree }: { tree: TreeWithObservations }) {
+  // Collect all PlantNet results from photo verifications across observations
+  const allResults: PlantNetResult[] = [];
+  for (const obs of tree.observations) {
+    for (const photo of obs.photos || []) {
+      if (photo.verification?.plantnet_raw) {
+        for (const r of photo.verification.plantnet_raw) {
+          if (!allResults.find(a => a.species === r.species)) {
+            allResults.push(r);
+          }
+        }
+      }
+    }
+  }
+  // Sort by score descending, take top 3
+  const topResults = allResults.sort((a, b) => b.score - a.score).slice(0, 3);
+
+  return (
+    <div className="border border-[var(--border)] rounded-lg p-2.5 text-sm space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[var(--muted)]">AI suggests:</span>
+        <span className="font-medium">{tree.plantnet_species}</span>
+      </div>
+      {tree.verification_confidence != null && (
+        <ConfidenceBar score={tree.verification_confidence} />
+      )}
+      {topResults.length > 1 && (
+        <div className="pt-1 space-y-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Alternatives</span>
+          {topResults.slice(1).map((r) => (
+            <div key={r.species} className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="text-xs italic">{r.species}</span>
+                {r.commonNames?.[0] && (
+                  <span className="text-[var(--muted)] text-[10px] ml-1">({r.commonNames[0]})</span>
+                )}
+              </div>
+              <span className="text-[10px] text-[var(--muted)] shrink-0">{Math.round(r.score * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfidenceBar({ score }: { score: number }) {
+  return (
+    <div className="w-full h-1.5 bg-[var(--bg)] rounded-full overflow-hidden">
+      <div
+        className="h-full rounded-full transition-all"
+        style={{
+          width: `${Math.round(score * 100)}%`,
+          background: score > 0.8 ? 'var(--accent)' : score > 0.5 ? 'var(--warn)' : '#ef4444',
+        }}
+      />
+    </div>
+  );
+}
+
+function PhotoVerificationBadge({ photo }: { photo: ObservationPhoto }) {
+  const v = photo.verification;
+  if (!v?.plantnet_species) return null;
+  return (
+    <div className="absolute bottom-1 left-1 right-1 bg-black/70 backdrop-blur-sm rounded px-1.5 py-0.5 text-[10px] text-white flex items-center justify-between">
+      <span className="truncate italic">{v.plantnet_species}</span>
+      {v.plantnet_score != null && (
+        <span className="shrink-0 ml-1 opacity-70">{Math.round(v.plantnet_score * 100)}%</span>
+      )}
+    </div>
+  );
+}
 
 function ObservationCard({ obs, defaultExpanded }: { obs: Observation; defaultExpanded: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -398,12 +455,13 @@ function ObservationCard({ obs, defaultExpanded }: { obs: Observation; defaultEx
           {obs.photos && obs.photos.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
               {obs.photos.map(photo => (
-                <a key={photo.id} href={photo.url || ''} target="_blank" rel="noopener noreferrer">
+                <a key={photo.id} href={photo.url || ''} target="_blank" rel="noopener noreferrer" className="relative shrink-0">
                   <img
                     src={photo.url || ''}
                     alt={photo.caption || 'Observation photo'}
-                    className="w-40 h-40 object-cover rounded-lg shrink-0"
+                    className="w-40 h-40 object-cover rounded-lg"
                   />
+                  <PhotoVerificationBadge photo={photo} />
                 </a>
               ))}
             </div>

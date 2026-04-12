@@ -67,6 +67,22 @@ export interface Observation {
   photos?: ObservationPhoto[];
 }
 
+export interface PlantNetResult {
+  species: string;
+  commonNames: string[];
+  score: number;
+}
+
+export interface PhotoVerification {
+  id: string;
+  photo_id: string;
+  plantnet_species: string | null;
+  plantnet_score: number | null;
+  plantnet_raw: PlantNetResult[] | null;
+  matches_tagged_species: boolean | null;
+  created_at: string;
+}
+
 export interface ObservationPhoto {
   id: string;
   observation_id: string;
@@ -75,6 +91,7 @@ export interface ObservationPhoto {
   caption: string | null;
   synced: boolean;
   local_id: string | null;
+  verification?: PhotoVerification | null;
 }
 
 export interface TreeWithObservations extends Tree {
