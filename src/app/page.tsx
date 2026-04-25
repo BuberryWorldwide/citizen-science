@@ -212,8 +212,21 @@ export default function Home() {
     if (userLocation) {
       setFormLat(userLocation[0]);
       setFormLon(userLocation[1]);
+      setShowForm(true);
+    } else if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setUserLocation(coords);
+          setFormLat(coords[0]);
+          setFormLon(coords[1]);
+          setShowForm(true);
+        },
+        () => setShowForm(true)
+      );
+    } else {
+      setShowForm(true);
     }
-    setShowForm(true);
   };
 
   const handleMapClick = (lat: number, lon: number) => {

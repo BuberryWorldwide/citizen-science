@@ -233,9 +233,13 @@ export function TagTreeForm({ lat, lon, onSuccess, onCancel }: TagTreeFormProps)
         <button type="button" onClick={onCancel} className="text-[var(--muted)] text-sm">Cancel</button>
       </div>
 
-      {lat && lon && (
+      {lat && lon ? (
         <p className="text-xs text-[var(--muted)]">
           Location: {lat.toFixed(5)}, {lon.toFixed(5)}
+        </p>
+      ) : (
+        <p className="text-xs text-amber-400">
+          Location needed — close this and tap on the map where the tree is, or enable location permission in your browser and try again.
         </p>
       )}
 
