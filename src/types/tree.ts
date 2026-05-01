@@ -28,13 +28,11 @@ export interface WorkOrder {
   id: string;
   tree_id: string;
   order_type: 'verify_species' | 'add_photo' | 'confirm_location' | 'check_phenology' | 'seasonal_update';
-  status: 'open' | 'claimed' | 'completed' | 'expired';
+  status: 'open' | 'completed' | 'expired';
   priority: number;
   reward_points: number;
   created_at: string;
   expires_at: string;
-  claimed_by: string | null;
-  claimed_at: string | null;
   completed_by: string | null;
   completed_at: string | null;
   result_data: unknown;
@@ -43,6 +41,13 @@ export interface WorkOrder {
   tree_lat?: number;
   tree_lon?: number;
   distance?: number;
+  // From /api/work-orders (Nearby) — present when authenticated
+  claimed_by_me?: boolean;
+  // From /api/work-orders/mine — per-user claim view
+  my_claimed_at?: string | null;
+  my_removed_at?: string | null;
+  my_removed_reason?: 'user_abandoned' | 'completed_by_other' | 'self_completed' | 'order_expired' | null;
+  my_state?: 'active' | 'completed' | 'ended';
 }
 
 export interface Observation {
