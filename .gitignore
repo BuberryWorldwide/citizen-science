@@ -7,5 +7,3 @@ next-env.d.ts
 .vercel
 scripts/
 CLAUDE.md
-src/lib/db/
-src/lib/storage/
