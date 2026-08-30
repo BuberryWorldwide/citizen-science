@@ -6,20 +6,31 @@ export interface TileLayerDef {
   url: string;
   attribution: string;
   maxZoom: number;
+  // Deepest zoom for which native tiles exist. Leaflet upscales tiles between
+  // maxNativeZoom and maxZoom (slightly blurry, but keeps deep zoom usable).
+  maxNativeZoom?: number;
+  // Optional labels overlay drawn above the base (Esri canvas splits labels out).
+  referenceUrl?: string;
   label: string;
 }
 
+// Esri Light/Dark Gray canvas: no API key, clean look. Base has no labels, so a
+// matching Reference overlay is layered on top. Native tiles cap at z16, upscaled to 19.
 export const TILE_LAYERS: Record<BaseLayer, TileLayerDef> = {
   clean: {
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    referenceUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; OSM contributors',
     maxZoom: 19,
+    maxNativeZoom: 16,
     label: 'Clean',
   },
   dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    referenceUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; OSM contributors',
     maxZoom: 19,
+    maxNativeZoom: 16,
     label: 'Dark',
   },
   standard: {

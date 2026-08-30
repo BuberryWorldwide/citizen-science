@@ -110,6 +110,7 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
 }, ref) {
   const mapRef = useRef<L.Map | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
+  const refTileRef = useRef<L.TileLayer | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const heatRef = useRef<L.HeatLayer | null>(null);
   const ffLayerRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -132,7 +133,18 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
     tileRef.current = L.tileLayer(initialLayer.url, {
       attribution: initialLayer.attribution,
       maxZoom: initialLayer.maxZoom,
+      maxNativeZoom: initialLayer.maxNativeZoom,
+      zIndex: 1,
     }).addTo(map);
+
+    // Labels overlay (Esri canvas layers keep labels in a separate tile set)
+    if (initialLayer.referenceUrl) {
+      refTileRef.current = L.tileLayer(initialLayer.referenceUrl, {
+        maxZoom: initialLayer.maxZoom,
+        maxNativeZoom: initialLayer.maxNativeZoom,
+        zIndex: 2,
+      }).addTo(map);
+    }
 
     L.control.zoom({ position: 'topright' }).addTo(map);
 
@@ -181,14 +193,35 @@ const TreeMap = forwardRef<TreeMapHandle, TreeMapProps>(function TreeMap({
   // Switch base tile layer
   useEffect(() => {
     if (!mapRef.current || !tileRef.current) return;
+    const map = mapRef.current;
     const layer = TILE_LAYERS[baseLayer];
-    tileRef.current.setUrl(layer.url);
     tileRef.current.options.attribution = layer.attribution;
     tileRef.current.options.maxZoom = layer.maxZoom;
+    tileRef.current.options.maxNativeZoom = layer.maxNativeZoom;
+    tileRef.current.setUrl(layer.url);
+
+    // Sync the labels overlay to the new base layer (add / update / remove)
+    if (layer.referenceUrl) {
+      if (refTileRef.current) {
+        refTileRef.current.options.maxZoom = layer.maxZoom;
+        refTileRef.current.options.maxNativeZoom = layer.maxNativeZoom;
+        refTileRef.current.setUrl(layer.referenceUrl);
+      } else {
+        refTileRef.current = L.tileLayer(layer.referenceUrl, {
+          maxZoom: layer.maxZoom,
+          maxNativeZoom: layer.maxNativeZoom,
+          zIndex: 2,
+        }).addTo(map);
+      }
+    } else if (refTileRef.current) {
+      map.removeLayer(refTileRef.current);
+      refTileRef.current = null;
+    }
+
     // Clamp map zoom to the layer's max so tiles don't break
-    mapRef.current.setMaxZoom(layer.maxZoom);
-    if (mapRef.current.getZoom() > layer.maxZoom) {
-      mapRef.current.setZoom(layer.maxZoom);
+    map.setMaxZoom(layer.maxZoom);
+    if (map.getZoom() > layer.maxZoom) {
+      map.setZoom(layer.maxZoom);
     }
   }, [baseLayer]);
 
